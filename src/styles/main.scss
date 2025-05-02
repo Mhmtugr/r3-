@@ -2,7 +2,7 @@
 @use "base/reset";
 @use "base/base";
 @use "layout/layout";
-@use "layout/sidebar";
+// @use "layout/sidebar"; // Styles are now in AppSidebar.vue
 @use "components/buttons";
 @use "components/cards";
 @use "components/badges";
@@ -10,8 +10,49 @@
 @use "components/charts";
 @use "components/chat";
 
-// Import Bootstrap after @use rules
-@import "bootstrap/scss/bootstrap";
+// Import Bootstrap functions, variables, mixins first
+@import "bootstrap/scss/functions";
+@import "bootstrap/scss/variables"; 
+@import "bootstrap/scss/mixins";
+
+// Import remaining Bootstrap components
+@import "bootstrap/scss/root";
+@import "bootstrap/scss/reboot";
+@import "bootstrap/scss/type";
+@import "bootstrap/scss/images";
+@import "bootstrap/scss/containers";
+@import "bootstrap/scss/grid";
+@import "bootstrap/scss/tables";
+@import "bootstrap/scss/forms";
+@import "bootstrap/scss/buttons";
+@import "bootstrap/scss/transitions";
+@import "bootstrap/scss/dropdown";
+@import "bootstrap/scss/button-group";
+@import "bootstrap/scss/nav";
+@import "bootstrap/scss/navbar";
+@import "bootstrap/scss/card";
+@import "bootstrap/scss/accordion";
+@import "bootstrap/scss/breadcrumb";
+@import "bootstrap/scss/pagination";
+@import "bootstrap/scss/badge";
+@import "bootstrap/scss/alert";
+@import "bootstrap/scss/progress";
+@import "bootstrap/scss/list-group";
+@import "bootstrap/scss/close";
+@import "bootstrap/scss/toasts";
+@import "bootstrap/scss/modal";
+@import "bootstrap/scss/tooltip";
+@import "bootstrap/scss/popover";
+@import "bootstrap/scss/carousel";
+@import "bootstrap/scss/spinners";
+@import "bootstrap/scss/offcanvas";
+@import "bootstrap/scss/placeholders";
+
+// Import Bootstrap utilities API
+@import "bootstrap/scss/utilities/api";
+
+// Import Bootstrap Icons font
+@import "bootstrap-icons/font/bootstrap-icons.css";
 
 // Theme colors
 :root {
@@ -36,43 +77,181 @@
 
 // Global styles
 body {
-  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
-  background-color: var(--bg-main);
-  color: var(--text-color);
-  line-height: 1.5;
-  margin: 0;
-  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--bg-content);
+}
+
+// Card styles
+.card {
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  transition: transform 0.3s;
+
+  &:hover {
+    transform: translateY(-5px);
+  }
+}
+
+.card-header {
+  background-color: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  font-weight: 600;
 }
 
 // Status badges
 .status-badge {
-  display: inline-block;
-  padding: 0.25em 0.6em;
-  font-size: 0.75em;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 12px;
   font-weight: 600;
-  border-radius: 0.25rem;
-  text-align: center;
-  white-space: nowrap;
-  vertical-align: middle;
 }
 
-.status-planned { background-color: #cfe2ff; color: #084298; }
-.status-progress { background-color: #fff3cd; color: #664d03; }
-.status-delayed { background-color: #f8d7da; color: #842029; }
-.status-completed { background-color: #d1e7dd; color: #0f5132; }
-
-// Chart containers
-.chart-container {
-  position: relative;
-  margin: auto;
-  height: 250px;
+.status-planned {
+  background-color: var(--status-planned-bg);
+  color: var(--status-planned-text);
 }
 
-// Responsive breakpoints
-$sidebar-width: vars.$sidebar-width;
-$sidebar-collapsed-width: vars.$sidebar-collapsed-width;
-$header-height: vars.$header-height;
-$footer-height: 50px;
+.status-in-progress {
+  background-color: var(--status-in-progress-bg);
+  color: var(--status-in-progress-text);
+}
+
+.status-delayed {
+  background-color: var(--status-delayed-bg);
+  color: var(--status-delayed-text);
+}
+
+.status-completed {
+  background-color: var(--status-completed-bg);
+  color: var(--status-completed-text);
+}
+
+// Priority borders
+.priority-high {
+  border-left: 4px solid var(--danger-color);
+}
+
+.priority-medium {
+  border-left: 4px solid var(--warning-color);
+}
+
+.priority-low {
+  border-left: 4px solid var(--success-color);
+}
+
+// AI Chatbot button styles
+.ai-chatbot {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.ai-chatbot-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: var(--secondary-color);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.3s;
+
+  &:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: var(--danger-color);
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// Progress bar style
+.progress-thin {
+  height: 5px;
+}
+
+// Custom table style
+.custom-table th {
+  background-color: var(--light-color);
+  font-weight: 600;
+}
+
+// Material status styles
+.material-required {
+  background-color: var(--material-required-bg);
+}
+
+.material-available {
+  background-color: var(--material-available-bg);
+}
+
+.material-critical {
+  background-color: var(--material-critical-bg);
+}
+
+// Gantt chart styles
+.gantt-container {
+  font-size: 12px;
+}
+
+.gantt-header {
+  font-weight: bold;
+}
+
+.gantt-day {
+  border: 1px solid #dee2e6;
+  padding: 2px;
+}
+
+.gantt-row {
+  height: 30px;
+  display: flex;
+  align-items: center;
+}
+
+.gantt-bar {
+  height: 20px;
+  border-radius: 3px;
+  position: absolute;
+  top: 5px;
+}
+
+// Chat modal styles
+.chat-message {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  max-width: 80%;
+}
+
+.user-message {
+  background-color: #e3f2fd;
+  margin-left: auto;
+}
+
+.ai-message {
+  background-color: #f1f1f1;
+  margin-right: auto;
+}
 
 // Scrollbar styling
 ::-webkit-scrollbar {

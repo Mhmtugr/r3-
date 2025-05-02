@@ -1,6 +1,6 @@
 <template>
   <div class="app-container" :class="{ 'sidebar-collapsed': isSidebarCollapsed, 'dark-mode': isDarkMode }">
-    <Sidebar @toggle-sidebar="toggleSidebar" :is-collapsed="isSidebarCollapsed" />
+    <AppSidebar :is-collapsed="isSidebarCollapsed" />
     <div class="main-content">
       <AppHeader 
         :username="username" 
@@ -19,7 +19,6 @@
       </main>
       <AppFooter />
     </div>
-    <!-- AI Chatbot Components -->
     <AIChatbotButton v-if="isAuthenticated" />
     <AIChatModal v-if="isAIChatModalOpen" @close="closeAIChatModal" />
     <Notifications />
@@ -32,7 +31,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/store/auth';
 import { useTechnicalStore } from '@/store/technical';
 import AppHeader from '@/components/app/AppHeader.vue';
-import Sidebar from '@/components/app/Sidebar.vue';
+import AppSidebar from '@/components/app/AppSidebar.vue';
 import AppFooter from '@/components/app/AppFooter.vue';
 import Notifications from '@/components/ui/Notifications.vue';
 import AIChatbotButton from '@/components/ai/AIChatbotButton.vue';
@@ -116,7 +115,7 @@ watch(
     flex: 1;
     display: flex;
     flex-direction: column;
-    margin-left: 250px; /* Sidebar genişliği */
+    margin-left: vars.$sidebar-width; /* Use variable from _variables.scss */
     transition: margin-left 0.3s ease;
     min-height: 100vh;
     background-color: var(--bg-content, #f8f9fa);
@@ -136,7 +135,7 @@ watch(
 
   &.sidebar-collapsed {
     .main-content {
-      margin-left: 70px; /* Daraltılmış sidebar genişliği */
+      margin-left: vars.$sidebar-collapsed-width; /* Use variable */
     }
   }
 }

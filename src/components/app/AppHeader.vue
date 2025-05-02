@@ -99,21 +99,17 @@
       
       <!-- Kullanıcı Menüsü -->
       <div class="header-user dropdown">
-        <button class="btn user-btn" data-bs-toggle="dropdown" aria-expanded="false">
-          <div class="user-avatar">
+        <button class="btn btn-outline-secondary dropdown-toggle user-btn" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          <div class="user-avatar me-2">
             <img v-if="userPhotoURL" :src="userPhotoURL" alt="User" />
             <div v-else class="avatar-placeholder">{{ userInitials }}</div>
           </div>
-          <span class="user-name">{{ username }}</span>
-          <i class="bi bi-chevron-down"></i>
+          <span class="user-name d-none d-sm-inline">{{ username }}</span>
         </button>
-        <ul class="dropdown-menu dropdown-menu-end user-dropdown">
-          <li>
-            <h6 class="dropdown-header">{{ username }}</h6>
-          </li>
+        <ul class="dropdown-menu dropdown-menu-end user-dropdown" aria-labelledby="userDropdown">
+          <li><h6 class="dropdown-header">{{ username }}</h6></li>
           <li><a class="dropdown-item" href="#" @click.prevent="navigateTo('/profile')"><i class="bi bi-person"></i> Profil</a></li>
           <li><a class="dropdown-item" href="#" @click.prevent="navigateTo('/settings')"><i class="bi bi-gear"></i> Ayarlar</a></li>
-          <li><a class="dropdown-item" href="#" @click.prevent="navigateTo('/help')"><i class="bi bi-question-circle"></i> Yardım</a></li>
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" href="#" @click.prevent="logout"><i class="bi bi-box-arrow-right"></i> Çıkış Yap</a></li>
         </ul>
@@ -788,13 +784,13 @@ export default {
         display: flex;
         align-items: center;
         background-color: transparent;
-        border: none;
-        padding: 0.25rem 0.5rem;
-        margin-left: 0.5rem;
-        border-radius: 0.25rem;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        padding: 0.375rem 0.75rem;
         
-        &:hover {
-          background-color: var(--bg-hover);
+        &:hover, &:focus {
+          background-color: var(--bs-light);
+          color: var(--text-primary);
         }
         
         .user-avatar {
@@ -802,7 +798,12 @@ export default {
           height: 32px;
           border-radius: 50%;
           overflow: hidden;
-          margin-right: 0.5rem;
+          background-color: var(--bs-secondary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: 500;
           
           img {
             width: 100%;
@@ -811,32 +812,13 @@ export default {
           }
           
           .avatar-placeholder {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: var(--primary);
-            color: white;
-            font-weight: 600;
-            font-size: 1rem;
+            font-size: 0.9rem;
           }
         }
         
         .user-name {
-          font-size: 0.9rem;
+          margin-left: 0.5rem;
           font-weight: 500;
-          color: var(--text-primary);
-          margin-right: 0.25rem;
-          max-width: 120px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        
-        i {
-          font-size: 0.75rem;
-          color: var(--text-secondary);
         }
       }
       
