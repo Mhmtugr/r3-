@@ -10,48 +10,47 @@
 @use "components/charts";
 @use "components/chat";
 
-// Import Bootstrap functions, variables, mixins first
-@import "bootstrap/scss/functions";
-@import "bootstrap/scss/variables"; 
-@import "bootstrap/scss/mixins";
+// Import Bootstrap using modern @use syntax
+// First import core utilities needed for customization
+@use "bootstrap/scss/functions" as bootstrap-functions;
+@use "bootstrap/scss/variables" as bootstrap-vars;
+@use "bootstrap/scss/mixins" as bootstrap-mixins;
 
-// Import remaining Bootstrap components
-@import "bootstrap/scss/root";
-@import "bootstrap/scss/reboot";
-@import "bootstrap/scss/type";
-@import "bootstrap/scss/images";
-@import "bootstrap/scss/containers";
-@import "bootstrap/scss/grid";
-@import "bootstrap/scss/tables";
-@import "bootstrap/scss/forms";
-@import "bootstrap/scss/buttons";
-@import "bootstrap/scss/transitions";
-@import "bootstrap/scss/dropdown";
-@import "bootstrap/scss/button-group";
-@import "bootstrap/scss/nav";
-@import "bootstrap/scss/navbar";
-@import "bootstrap/scss/card";
-@import "bootstrap/scss/accordion";
-@import "bootstrap/scss/breadcrumb";
-@import "bootstrap/scss/pagination";
-@import "bootstrap/scss/badge";
-@import "bootstrap/scss/alert";
-@import "bootstrap/scss/progress";
-@import "bootstrap/scss/list-group";
-@import "bootstrap/scss/close";
-@import "bootstrap/scss/toasts";
-@import "bootstrap/scss/modal";
-@import "bootstrap/scss/tooltip";
-@import "bootstrap/scss/popover";
-@import "bootstrap/scss/carousel";
-@import "bootstrap/scss/spinners";
-@import "bootstrap/scss/offcanvas";
-@import "bootstrap/scss/placeholders";
+// Create a separate forward file to handle all Bootstrap components
+@forward "bootstrap/scss/root";
+@forward "bootstrap/scss/reboot";
+@forward "bootstrap/scss/type";
+@forward "bootstrap/scss/images";
+@forward "bootstrap/scss/containers";
+@forward "bootstrap/scss/grid";
+@forward "bootstrap/scss/tables";
+@forward "bootstrap/scss/forms";
+@forward "bootstrap/scss/buttons";
+@forward "bootstrap/scss/transitions";
+@forward "bootstrap/scss/dropdown";
+@forward "bootstrap/scss/button-group";
+@forward "bootstrap/scss/nav";
+@forward "bootstrap/scss/navbar";
+@forward "bootstrap/scss/card";
+@forward "bootstrap/scss/accordion";
+@forward "bootstrap/scss/breadcrumb";
+@forward "bootstrap/scss/pagination";
+@forward "bootstrap/scss/badge";
+@forward "bootstrap/scss/alert";
+@forward "bootstrap/scss/progress";
+@forward "bootstrap/scss/list-group";
+@forward "bootstrap/scss/close";
+@forward "bootstrap/scss/toasts";
+@forward "bootstrap/scss/modal";
+@forward "bootstrap/scss/tooltip";
+@forward "bootstrap/scss/popover";
+@forward "bootstrap/scss/carousel";
+@forward "bootstrap/scss/spinners";
+@forward "bootstrap/scss/offcanvas";
+@forward "bootstrap/scss/placeholders";
+@forward "bootstrap/scss/utilities/api";
 
-// Import Bootstrap utilities API
-@import "bootstrap/scss/utilities/api";
-
-// Import Bootstrap Icons font
+// Import Bootstrap Icons as regular CSS import
 @import "bootstrap-icons/font/bootstrap-icons.css";
 
 // Theme colors

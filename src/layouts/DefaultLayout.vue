@@ -104,7 +104,9 @@ watch(
 </script>
 
 <style lang="scss">
-@use "@/styles/base/variables" as vars;
+// Define variables locally instead of importing them to avoid build issues
+$sidebar-width: 250px;
+$sidebar-collapsed-width: 70px;
 
 .app-container {
   display: flex;
@@ -115,7 +117,7 @@ watch(
     flex: 1;
     display: flex;
     flex-direction: column;
-    margin-left: vars.$sidebar-width; /* Use variable from _variables.scss */
+    margin-left: $sidebar-width; /* Use local variable */
     transition: margin-left 0.3s ease;
     min-height: 100vh;
     background-color: var(--bg-content, #f8f9fa);
@@ -135,7 +137,7 @@ watch(
 
   &.sidebar-collapsed {
     .main-content {
-      margin-left: vars.$sidebar-collapsed-width; /* Use variable */
+      margin-left: $sidebar-collapsed-width; /* Use local variable */
     }
   }
 }
