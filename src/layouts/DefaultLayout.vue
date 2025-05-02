@@ -1,6 +1,6 @@
 <template>
   <div class="app-container" :class="{ 'sidebar-collapsed': isSidebarCollapsed, 'dark-mode': isDarkMode }">
-    <AppSidebar :is-collapsed="isSidebarCollapsed" />
+    <Sidebar @toggle-sidebar="toggleSidebar" :is-collapsed="isSidebarCollapsed" />
     <div class="main-content">
       <AppHeader 
         :username="username" 
@@ -19,6 +19,7 @@
       </main>
       <AppFooter />
     </div>
+    <!-- AI Chatbot Components -->
     <AIChatbotButton v-if="isAuthenticated" />
     <AIChatModal v-if="isAIChatModalOpen" @close="closeAIChatModal" />
     <Notifications />
@@ -31,7 +32,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/store/auth';
 import { useTechnicalStore } from '@/store/technical';
 import AppHeader from '@/components/app/AppHeader.vue';
-import AppSidebar from '@/components/app/AppSidebar.vue';
+import Sidebar from '@/components/app/Sidebar.vue';
 import AppFooter from '@/components/app/AppFooter.vue';
 import Notifications from '@/components/ui/Notifications.vue';
 import AIChatbotButton from '@/components/ai/AIChatbotButton.vue';
@@ -104,9 +105,7 @@ watch(
 </script>
 
 <style lang="scss">
-// Define variables locally instead of importing them to avoid build issues
-$sidebar-width: 250px;
-$sidebar-collapsed-width: 70px;
+@use "@/styles/base/variables" as vars;
 
 .app-container {
   display: flex;
@@ -117,7 +116,7 @@ $sidebar-collapsed-width: 70px;
     flex: 1;
     display: flex;
     flex-direction: column;
-    margin-left: $sidebar-width; /* Use local variable */
+    margin-left: 250px; /* Sidebar genişliği */
     transition: margin-left 0.3s ease;
     min-height: 100vh;
     background-color: var(--bg-content, #f8f9fa);
@@ -137,7 +136,7 @@ $sidebar-collapsed-width: 70px;
 
   &.sidebar-collapsed {
     .main-content {
-      margin-left: $sidebar-collapsed-width; /* Use local variable */
+      margin-left: 70px; /* Daraltılmış sidebar genişliği */
     }
   }
 }
