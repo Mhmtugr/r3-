@@ -6,15 +6,9 @@
       </button>
       
       <div class="page-title">
-        <h1>{{ currentPageTitle }}</h1>
-        <nav aria-label="breadcrumb">
-          <ol class="breadcrumb">
-            <li v-for="(item, index) in breadcrumbs" :key="index" class="breadcrumb-item" :class="{ 'active': index === breadcrumbs.length - 1 }">
-              <router-link v-if="index !== breadcrumbs.length - 1" :to="item.path">{{ item.title }}</router-link>
-              <span v-else>{{ item.title }}</span>
-            </li>
-          </ol>
-        </nav>
+        <!-- Static title from ornekindex.html -->
+        <h1 class="mb-0">Orta Gerilim Hücre Üretim Takip Sistemi</h1>
+        <!-- Breadcrumbs removed -->
       </div>
     </div>
     
@@ -99,21 +93,17 @@
       
       <!-- Kullanıcı Menüsü -->
       <div class="header-user dropdown">
-        <button class="btn user-btn" data-bs-toggle="dropdown" aria-expanded="false">
-          <div class="user-avatar">
+        <button class="btn btn-outline-secondary dropdown-toggle user-btn" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          <div class="user-avatar me-2">
             <img v-if="userPhotoURL" :src="userPhotoURL" alt="User" />
-            <div v-else class="avatar-placeholder">{{ userInitials }}</div>
+            <div v-else class="avatar-placeholder"><i class="bi bi-person-circle"></i></div>
           </div>
-          <span class="user-name">{{ username }}</span>
-          <i class="bi bi-chevron-down"></i>
+          <span class="user-name d-none d-sm-inline">{{ username }}</span>
         </button>
-        <ul class="dropdown-menu dropdown-menu-end user-dropdown">
-          <li>
-            <h6 class="dropdown-header">{{ username }}</h6>
-          </li>
+        <ul class="dropdown-menu dropdown-menu-end user-dropdown" aria-labelledby="userDropdown">
+          <li><h6 class="dropdown-header">{{ username }}</h6></li>
           <li><a class="dropdown-item" href="#" @click.prevent="navigateTo('/profile')"><i class="bi bi-person"></i> Profil</a></li>
           <li><a class="dropdown-item" href="#" @click.prevent="navigateTo('/settings')"><i class="bi bi-gear"></i> Ayarlar</a></li>
-          <li><a class="dropdown-item" href="#" @click.prevent="navigateTo('/help')"><i class="bi bi-question-circle"></i> Yardım</a></li>
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" href="#" @click.prevent="logout"><i class="bi bi-box-arrow-right"></i> Çıkış Yap</a></li>
         </ul>
@@ -124,7 +114,7 @@
 
 <script>
 import { ref, computed, inject, onMounted, watch } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { useNotificationStore } from '@/store/notification';
 
 export default {
@@ -145,46 +135,11 @@ export default {
   
   setup(props, { emit }) {
     const router = useRouter();
-    const route = useRoute();
     const notificationStore = useNotificationStore();
     
     // Inject
     const isSidebarCollapsed = inject('isSidebarCollapsed');
     const isDarkMode = inject('isDarkMode');
-    
-    // Şu anki sayfa
-    const currentPageTitle = computed(() => {
-      return route.meta.title || 'Ana Sayfa';
-    });
-    
-    // Breadcrumbs
-    const breadcrumbs = computed(() => {
-      const crumbs = [];
-      
-      // Ana sayfa her zaman var
-      crumbs.push({
-        title: 'Ana Sayfa',
-        path: '/'
-      });
-      
-      // Route'dan breadcrumb oluştur
-      const paths = route.path.split('/').filter(Boolean);
-      let currentPath = '';
-      
-      paths.forEach((path, index) => {
-        currentPath += `/${path}`;
-        // Rotanın meta verisinden başlığı al veya yol adını kullan
-        const matchedRoute = router.getRoutes().find(r => r.path === currentPath);
-        const title = matchedRoute?.meta?.title || path.charAt(0).toUpperCase() + path.slice(1);
-        
-        crumbs.push({
-          title: title,
-          path: currentPath
-        });
-      });
-      
-      return crumbs;
-    });
     
     // Arama
     const searchQuery = ref('');
@@ -193,7 +148,6 @@ export default {
     const searchResults = ref([]);
     
     const onSearchBlur = () => {
-      // Kullanıcı tıkladığında dropdown'ı kapatmamak için gecikmeli kapat
       setTimeout(() => {
         searchFocused.value = false;
       }, 200);
@@ -212,10 +166,8 @@ export default {
       
       isSearching.value = true;
       
-      // Demo arama sonuçları - gerçek uygulamada API'den gelecek
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Demo sonuçları
       searchResults.value = [
         {
           id: 1,
@@ -243,13 +195,11 @@ export default {
       isSearching.value = false;
     };
     
-    // Search sonuçlarına git
     const navigateToSearchResult = (result) => {
       router.push(result.path);
       clearSearch();
     };
     
-    // Arama sonucunun türüne göre icon
     const getSearchResultIcon = (type) => {
       switch (type) {
         case 'order': return 'bi-file-earmark-text';
@@ -261,7 +211,6 @@ export default {
       }
     };
     
-    // Arama terimi değişikliğini izle
     watch(searchQuery, (newVal) => {
       if (newVal) {
         searchInSystem(newVal);
@@ -285,7 +234,6 @@ export default {
       notificationStore.markAllAsRead();
     };
     
-    // Bildirim türüne göre icon
     const getNotificationIcon = (type) => {
       switch (type) {
         case 'success': return 'bi-check-circle';
@@ -296,7 +244,6 @@ export default {
       }
     };
     
-    // Zaman formatı
     const formatTime = (timestamp) => {
       if (!timestamp) return '';
       
@@ -318,16 +265,14 @@ export default {
       }
     };
     
-    // Demo bildirimleri yükle
     const loadDemoNotifications = () => {
       const now = new Date();
       
-      // Demo bildirimler ekle
       notificationStore.add({
         title: 'Geciken Sipariş',
         message: 'Sipariş #0424-1251 teslim tarihi geçti.',
         type: 'danger',
-        timestamp: new Date(now.getTime() - 30 * 60000), // 30 dakika önce
+        timestamp: new Date(now.getTime() - 30 * 60000),
         link: '/orders/0424-1251',
         read: false
       });
@@ -336,7 +281,7 @@ export default {
         title: 'Kritik stok seviyesi',
         message: 'Siemens 7SR1003 röle stok seviyesi kritik.',
         type: 'warning',
-        timestamp: new Date(now.getTime() - 4 * 60 * 60000), // 4 saat önce
+        timestamp: new Date(now.getTime() - 4 * 60 * 60000),
         link: '/inventory/materials',
         read: false
       });
@@ -345,13 +290,12 @@ export default {
         title: 'Yeni sipariş',
         message: 'TEİAŞ\'tan yeni sipariş alındı.',
         type: 'info',
-        timestamp: new Date(now.getTime() - 2 * 24 * 60 * 60000), // 2 gün önce
+        timestamp: new Date(now.getTime() - 2 * 24 * 60 * 60000),
         link: '/orders',
         read: true
       });
     };
     
-    // Fonksiyonlar
     const toggleSidebar = () => {
       emit('toggle-sidebar');
     };
@@ -368,7 +312,6 @@ export default {
       router.push(path);
     };
     
-    // Kullanıcı baş harfleri
     const userInitials = computed(() => {
       if (!props.username) return 'U';
       const names = props.username.split(' ');
@@ -378,15 +321,11 @@ export default {
       return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
     });
     
-    // Component mounted
     onMounted(() => {
-      // Demo bildirimler yükle
       loadDemoNotifications();
     });
     
     return {
-      currentPageTitle,
-      breadcrumbs,
       searchQuery,
       searchFocused,
       isSearching,
@@ -446,33 +385,6 @@ export default {
         font-size: 1.25rem;
         margin: 0;
         color: var(--text-primary);
-      }
-      
-      .breadcrumb {
-        margin: 0;
-        font-size: 0.85rem;
-        
-        .breadcrumb-item {
-          + .breadcrumb-item::before {
-            font-family: bootstrap-icons;
-            content: "\F285";
-            color: var(--text-muted);
-            font-size: 0.7rem;
-          }
-          
-          a {
-            color: var(--text-muted);
-            text-decoration: none;
-            
-            &:hover {
-              color: var(--primary);
-            }
-          }
-          
-          &.active {
-            color: var(--text-secondary);
-          }
-        }
       }
     }
   }
@@ -788,13 +700,13 @@ export default {
         display: flex;
         align-items: center;
         background-color: transparent;
-        border: none;
-        padding: 0.25rem 0.5rem;
-        margin-left: 0.5rem;
-        border-radius: 0.25rem;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        padding: 0.375rem 0.75rem;
         
-        &:hover {
-          background-color: var(--bg-hover);
+        &:hover, &:focus {
+          background-color: var(--bs-light);
+          color: var(--text-primary);
         }
         
         .user-avatar {
@@ -802,7 +714,12 @@ export default {
           height: 32px;
           border-radius: 50%;
           overflow: hidden;
-          margin-right: 0.5rem;
+          background-color: var(--bs-secondary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: 500;
           
           img {
             width: 100%;
@@ -811,32 +728,16 @@ export default {
           }
           
           .avatar-placeholder {
-            width: 100%;
-            height: 100%;
+            font-size: 1.25rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: var(--primary);
-            color: white;
-            font-weight: 600;
-            font-size: 1rem;
           }
         }
         
         .user-name {
-          font-size: 0.9rem;
+          margin-left: 0.5rem;
           font-weight: 500;
-          color: var(--text-primary);
-          margin-right: 0.25rem;
-          max-width: 120px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        
-        i {
-          font-size: 0.75rem;
-          color: var(--text-secondary);
         }
       }
       
@@ -869,12 +770,6 @@ export default {
 
 @media (max-width: 768px) {
   .app-header {
-    .page-title {
-      .breadcrumb {
-        display: none;
-      }
-    }
-    
     .header-search {
       display: none;
     }
@@ -889,3 +784,4 @@ export default {
   }
 }
 </style>
+```
