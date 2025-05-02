@@ -1,6 +1,3 @@
-// Import Bootstrap first
-@import "bootstrap/scss/bootstrap";
-
 @use "base/variables" as vars;
 @use "base/reset";
 @use "base/base";
@@ -12,6 +9,9 @@
 @use "components/dashboard-widgets";
 @use "components/charts";
 @use "components/chat";
+
+// Import Bootstrap after @use rules
+@import "bootstrap/scss/bootstrap";
 
 // Theme colors
 :root {
