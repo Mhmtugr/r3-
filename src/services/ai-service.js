@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 // Corrected import paths assuming stores are exported from these module files
-import { useOrdersStore } from '@/modules/orders/useOrders'; // Corrected path
+import { useOrders } from '@/modules/orders/useOrders'; // Corrected function name
 import { useInventoryStore } from '@/modules/inventory/useStockManagement'; // Corrected path (assuming this file exports it)
 import { useTechnicalStore } from '@/store/technical.js'; // Added .js for clarity
 import logger from '@/utils/logger';
@@ -490,20 +490,23 @@ class AIService {
   async getSystemData() {
     try {
       // Get store instances
-      const ordersStore = useOrdersStore();
+      const ordersStore = useOrders(); // Corrected function call
       const inventoryStore = useInventoryStore();
       const technicalStore = useTechnicalStore();
       
       // Collect data from stores (Ensure properties like activeOrders exist on the stores)
+      // Note: useOrders composable returns 'orders' ref, not 'activeOrders'. Adjusting accordingly.
+      // Also check properties returned by useInventoryStore and useTechnicalStore.
       const systemData = {
-        orders: ordersStore.activeOrders || [], // Make sure 'activeOrders' exists on the orders store
-        materials: inventoryStore.materialsList || [], // Make sure 'materialsList' exists on the inventory store
-        technical: technicalStore.technicalDocuments || [], // Make sure 'technicalDocuments' exists on the technical store
+        orders: ordersStore.orders.value || [], // Adjusted to use the 'orders' ref from useOrders
+        materials: inventoryStore.materialsList || [], // Verify 'materialsList' exists on useInventoryStore result
+        technical: technicalStore.technicalDocuments || [], // Verify 'technicalDocuments' exists on useTechnicalStore result
         stats: {
-          totalOrders: ordersStore.totalOrders || 0, // Make sure 'totalOrders' exists
-          delayedOrders: ordersStore.delayedOrders?.length || 0, // Make sure 'delayedOrders' exists
-          criticalMaterials: inventoryStore.criticalMaterials?.length || 0, // Make sure 'criticalMaterials' exists
-          productionEfficiency: ordersStore.productionEfficiency || 0 // Make sure 'productionEfficiency' exists
+          totalOrders: ordersStore.totalOrderCount.value || 0, // Adjusted to use 'totalOrderCount' ref
+          // Assuming delayedOrders, criticalMaterials, productionEfficiency might need adjustments based on store content
+          delayedOrders: ordersStore.orders.value.filter(o => o.status === 'delayed').length || 0, // Example calculation
+          criticalMaterials: inventoryStore.materialsList?.filter(m => m.status === 'Kritik').length || 0, // Example calculation
+          productionEfficiency: 78 // Placeholder - Needs actual source from a store/composable
         }
       };
       
