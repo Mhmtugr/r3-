@@ -2,8 +2,8 @@
   <aside class="sidebar" :class="{ 'collapsed': isCollapsed }">
     <div class="sidebar-header">
       <router-link to="/" class="logo-link">
-        <img src="@/assets/images/logo.png" alt="Logo" class="logo-icon" v-if="!isCollapsed">
-        <img src="@/assets/images/logo-sm.png" alt="Logo" class="logo-icon-sm" v-else>
+        <img :src="logoLarge" alt="Logo" class="logo-icon" v-if="!isCollapsed">
+        <img :src="logoSmall" alt="Logo" class="logo-icon-sm" v-else>
         <h4 v-if="!isCollapsed">MehmetEndüstriyelTakip</h4>
       </router-link>
       <p v-if="!isCollapsed" class="text-muted small">Orta Gerilim Hücre Üretim Takip</p>
@@ -70,7 +70,13 @@
 </template>
 
 <script setup>
-import { defineProps } from 'vue';
+import { defineProps, ref } from 'vue';
+import logoLargeImg from '@/assets/images/logo.png';
+import logoSmallImg from '@/assets/images/logo-sm.png';
+
+// Logo assets
+const logoLarge = ref(logoLargeImg);
+const logoSmall = ref(logoSmallImg);
 
 // Props'ları tanımla (DefaultLayout'tan gelecek)
 defineProps({
