@@ -1,7 +1,8 @@
 import { ref } from 'vue';
-import { useOrdersStore } from '@/store/orders';
-import { useInventoryStore } from '@/store/inventory';
-import { useTechnicalStore } from '@/store/technical';
+// Corrected import paths assuming stores are exported from these module files
+import { useOrdersStore } from '@/modules/orders/useOrders'; // Corrected path
+import { useInventoryStore } from '@/modules/inventory/useStockManagement'; // Corrected path (assuming this file exports it)
+import { useTechnicalStore } from '@/store/technical.js'; // Added .js for clarity
 import logger from '@/utils/logger';
 
 // API configuration - Using environment variables for security
@@ -493,27 +494,33 @@ class AIService {
       const inventoryStore = useInventoryStore();
       const technicalStore = useTechnicalStore();
       
-      // Collect data from stores
+      // Collect data from stores (Ensure properties like activeOrders exist on the stores)
       const systemData = {
-        orders: ordersStore.activeOrders || [],
-        materials: inventoryStore.materialsList || [],
-        technical: technicalStore.technicalDocuments || [],
+        orders: ordersStore.activeOrders || [], // Make sure 'activeOrders' exists on the orders store
+        materials: inventoryStore.materialsList || [], // Make sure 'materialsList' exists on the inventory store
+        technical: technicalStore.technicalDocuments || [], // Make sure 'technicalDocuments' exists on the technical store
         stats: {
-          totalOrders: ordersStore.totalOrders || 0,
-          delayedOrders: ordersStore.delayedOrders?.length || 0,
-          criticalMaterials: inventoryStore.criticalMaterials?.length || 0,
-          productionEfficiency: ordersStore.productionEfficiency || 0
+          totalOrders: ordersStore.totalOrders || 0, // Make sure 'totalOrders' exists
+          delayedOrders: ordersStore.delayedOrders?.length || 0, // Make sure 'delayedOrders' exists
+          criticalMaterials: inventoryStore.criticalMaterials?.length || 0, // Make sure 'criticalMaterials' exists
+          productionEfficiency: ordersStore.productionEfficiency || 0 // Make sure 'productionEfficiency' exists
         }
       };
       
       return systemData;
     } catch (error) {
       logger.error('Error collecting system data:', error);
+      // Provide default structure on error
       return {
         orders: [],
         materials: [],
         technical: [],
-        stats: {}
+        stats: {
+          totalOrders: 0,
+          delayedOrders: 0,
+          criticalMaterials: 0,
+          productionEfficiency: 0
+        }
       };
     }
   }
