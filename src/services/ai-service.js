@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 // Corrected import paths assuming stores are exported from these module files
 import { useOrders } from '@/modules/orders/useOrders'; // Corrected function name
-import { useInventoryStore } from '@/modules/inventory/useStockManagement'; // Corrected path (assuming this file exports it)
+import { useStockManagement } from '@/modules/inventory/useStockManagement'; // Corrected import name
 import { useTechnicalStore } from '@/store/technical.js'; // Added .js for clarity
 import logger from '@/utils/logger';
 
@@ -490,8 +490,8 @@ class AIService {
   async getSystemData() {
     try {
       // Get store instances
-      const ordersStore = useOrders(); // Corrected function call
-      const inventoryStore = useInventoryStore();
+      const ordersStore = useOrders();
+      const inventoryStore = useStockManagement(); // Corrected function call
       const technicalStore = useTechnicalStore();
       
       // Collect data from stores (Ensure properties like activeOrders exist on the stores)
@@ -499,13 +499,15 @@ class AIService {
       // Also check properties returned by useInventoryStore and useTechnicalStore.
       const systemData = {
         orders: ordersStore.orders.value || [], // Adjusted to use the 'orders' ref from useOrders
-        materials: inventoryStore.materialsList || [], // Verify 'materialsList' exists on useInventoryStore result
+        // TODO: Determine correct source for general materials list from inventory composables (e.g., useMaterials or aggregate data)
+        materials: [], // Placeholder: useStockManagement doesn't directly provide a simple 'materialsList'
         technical: technicalStore.technicalDocuments || [], // Verify 'technicalDocuments' exists on useTechnicalStore result
         stats: {
           totalOrders: ordersStore.totalOrderCount.value || 0, // Adjusted to use 'totalOrderCount' ref
           // Assuming delayedOrders, criticalMaterials, productionEfficiency might need adjustments based on store content
           delayedOrders: ordersStore.orders.value.filter(o => o.status === 'delayed').length || 0, // Example calculation
-          criticalMaterials: inventoryStore.materialsList?.filter(m => m.status === 'Kritik').length || 0, // Example calculation
+          // TODO: Update criticalMaterials calculation based on the actual source of materials data
+          criticalMaterials: 0, // Placeholder: Needs actual source from inventory composables
           productionEfficiency: 78 // Placeholder - Needs actual source from a store/composable
         }
       };
