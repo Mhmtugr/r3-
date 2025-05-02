@@ -21,7 +21,7 @@ import 'bootstrap/dist/js/bootstrap.bundle.min.js'
 import { aiService } from '@/services/ai-service'
 import { apiService } from '@/services/api-service'
 import { useEventBus } from '@/utils/event-bus'
-import { componentRegistrar } from '@/utils/component-registrar'
+import { registerComponents } from '@/utils/component-registrar'
 
 // Global API Configuration
 window.DEEPSEEK_API_KEY = window.DEEPSEEK_API_KEY || 'sk-3a17ae40b3e445528bc988f04805e54b' // Demo anahtar
@@ -106,7 +106,7 @@ app.use(pinia)
 app.use(router)
 
 // Bileşen kaydedici
-app.use(componentRegistrar)
+registerComponents(app)
 
 // Global özellikleri ayarla
 app.config.globalProperties.$eventBus = useEventBus()
