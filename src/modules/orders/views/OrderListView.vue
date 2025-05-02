@@ -1,7 +1,7 @@
 <template>
   <div class="order-list-view">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card border-0">
+      <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Sipariş Yönetimi</h5>
         <button class="btn btn-primary" @click="openNewOrderModal">
           <i class="bi bi-plus"></i> Yeni Sipariş Ekle
@@ -61,7 +61,7 @@
                 <td>{{ order.cellType }}</td>
                 <td>{{ order.quantity }}</td>
                 <td>{{ order.deliveryDate }}</td>
-                <td><span :class="getStatusClass(order.status)">{{ order.status }}</span></td>
+                <td><span :class="getStatusBadgeClass(order.status)">{{ order.status }}</span></td>
                 <td>
                   <div class="progress progress-thin">
                     <div :class="getProgressBarClass(order.status)" role="progressbar" :style="{ width: order.progress + '%' }"></div>
@@ -95,10 +95,6 @@
         </nav>
       </div>
     </div>
-
-    <!-- Yeni Sipariş Modalı (Ayrı bileşen olabilir) -->
-    <!-- <NewOrderModal v-if="isModalOpen" @close="closeNewOrderModal" /> -->
-
   </div>
 </template>
 
@@ -120,10 +116,30 @@ const {
   totalPages,
   applyFilters,
   changePage,
-  getStatusClass,
-  getPriorityClass,
-  getProgressBarClass
+  getPriorityClass
 } = useOrders();
+
+// Status sınıfları - ornekindex.html'e uyarlandı
+const getStatusBadgeClass = (status) => {
+  switch(status) {
+    case 'Planlandı': return 'status-badge status-planned';
+    case 'Devam Ediyor': return 'status-badge status-in-progress';
+    case 'Gecikmiş': return 'status-badge status-delayed';
+    case 'Tamamlandı': return 'status-badge status-completed';
+    default: return 'status-badge';
+  }
+};
+
+// İlerleme çubuğu sınıfları
+const getProgressBarClass = (status) => {
+  switch(status) {
+    case 'Planlandı': return 'progress-bar bg-info';
+    case 'Devam Ediyor': return 'progress-bar bg-warning';
+    case 'Gecikmiş': return 'progress-bar bg-danger';
+    case 'Tamamlandı': return 'progress-bar bg-success';
+    default: return 'progress-bar';
+  }
+};
 
 // Metodlar
 const openNewOrderModal = () => {
@@ -142,55 +158,83 @@ const editOrder = (order) => {
 };
 </script>
 
-<style scoped>
-/* Sipariş listesi özel stilleri */
+<style lang="scss" scoped>
+/* Sipariş listesi özel stilleri - ornekindex.html'den alındı */
 .table th {
-    background-color: var(--bs-light); /* Bootstrap light değişkeni */
+  background-color: var(--bs-light); 
+  font-weight: 600;
 }
 
 .status-badge {
   display: inline-block;
-  padding: 0.25em 0.6em;
-  font-size: 0.75em;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 12px;
   font-weight: 600;
-  border-radius: 0.25rem;
   text-align: center;
 }
 
 .status-planned {
-  background-color: #cfe2ff;
-  color: #084298;
+  background-color: #e3f2fd;
+  color: #1976d2;
 }
 
 .status-in-progress {
-  background-color: #fff3cd;
-  color: #664d03;
+  background-color: #fff8e1;
+  color: #ff8f00;
 }
 
 .status-delayed {
-  background-color: #f8d7da;
-  color: #842029;
+  background-color: #ffebee;
+  color: #d32f2f;
 }
 
 .status-completed {
-  background-color: #d1e7dd;
-  color: #0f5132;
+  background-color: #e8f5e9;
+  color: #388e3c;
 }
 
 .progress-thin {
   height: 6px;
+  border-radius: 3px;
 }
 
 /* Öncelik renkleri */
 .priority-high {
-  border-left: 4px solid #dc3545;
+  border-left: 4px solid var(--danger-color, #e74c3c);
 }
 
 .priority-medium {
-  border-left: 4px solid #fd7e14;
+  border-left: 4px solid var(--warning-color, #f39c12);
 }
 
 .priority-low {
-  border-left: 4px solid #0dcaf0;
+  border-left: 4px solid var(--success-color, #27ae60);
+}
+
+/* Kart stilleri */
+.card {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s;
+  border-radius: 10px;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+}
+
+.card-header {
+  font-weight: 600;
+}
+
+.custom-table {
+  margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .status-badge {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
 }
 </style>

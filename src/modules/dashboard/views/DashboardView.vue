@@ -1,23 +1,6 @@
 <template>
   <div class="dashboard-view">
-    <!-- Üst Bilgi ve İstatistik Özeti -->
-    <div class="dashboard-header">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h2 class="page-title">Genel Bakış</h2>
-          <p class="text-muted">Hoş geldiniz, bugün {{ formattedDate }}</p>
-        </div>
-        <div class="dashboard-actions">
-          <div class="date-filter d-flex align-items-center me-2">
-            <button class="btn btn-sm btn-outline-primary" @click="refreshDashboard">
-              <i class="bi bi-arrow-clockwise"></i> Yenile
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- İstatistik Kartları -->
+    <!-- İstatistik Kartları - ornekindex.html'deki 4 kart yapısına uygun -->
     <div class="row mb-4">
       <div class="col-md-3 col-sm-6 mb-3">
         <div class="stat-card card border-0 h-100">
@@ -112,7 +95,7 @@
       </div>
     </div>
 
-    <!-- Grafikler ve Tablolar -->
+    <!-- Grafikler - ornekindex.html'deki düzene göre (8-4 sütun) -->
     <div class="row">
       <!-- Üretim Durumu Grafiği -->
       <div class="col-lg-8 col-md-12 mb-4">
@@ -147,7 +130,10 @@
           </div>
         </div>
       </div>
+    </div>
       
+    <!-- Alt Tablolar ve Listeler - ornekindex.html'deki düzene göre (6-6 sütun) -->
+    <div class="row mt-4">
       <!-- Kritik Malzeme Durumu Tablosu -->
       <div class="col-lg-6 col-md-12 mb-4">
         <div class="card border-0 h-100">
@@ -157,7 +143,7 @@
           </div>
           <div class="card-body p-0">
             <div class="table-responsive">
-              <table class="table table-hover mb-0">
+              <table class="table table-hover mb-0 custom-table">
                 <thead>
                   <tr>
                     <th>Malzeme Kodu</th>
@@ -172,7 +158,7 @@
                     <td colspan="5" class="text-center py-3">Kritik malzeme bulunmamaktadır.</td>
                   </tr>
                   <tr v-for="(material, index) in dashboardData.criticalMaterials" :key="index" 
-                      :class="material.status === 'critical' ? 'table-danger' : 'table-warning'">
+                      :class="material.status === 'critical' ? 'material-critical' : 'material-required'">
                     <td>{{ material.code }}</td>
                     <td class="text-nowrap text-truncate" style="max-width: 200px;">{{ material.name }}</td>
                     <td>{{ material.stock }}</td>
@@ -571,14 +557,28 @@ onBeforeUnmount(() => {
   padding: 1rem;
 }
 
-.stat-card {
-  transition: all 0.2s ease;
-  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+/* Kart stilleri - ornekindex.html'den uyarlandı */
+.card {
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  transition: transform 0.3s;
 }
 
-.stat-card:hover {
+.card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+  background-color: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  font-weight: 600;
+}
+
+/* İstatistik kartları */
+.stat-card {
+  transition: all 0.2s ease;
 }
 
 .stat-icon {
@@ -593,6 +593,7 @@ onBeforeUnmount(() => {
   font-size: 1.5rem;
 }
 
+/* Grafik stilleri */
 .chart-container {
   position: relative;
   width: 100%;
@@ -604,7 +605,26 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-/* Responsive düzenlemeler */
+/* Malzeme durumu stilleri - ornekindex.html'den */
+.material-critical {
+  background-color: var(--material-critical-bg, #ffebee);
+}
+
+.material-required {
+  background-color: var(--material-required-bg, #fff3e0);
+}
+
+.material-available {
+  background-color: var(--material-available-bg, #e8f5e9);
+}
+
+/* Custom tablo stilleri - ornekindex.html'den */
+.custom-table th {
+  background-color: var(--light-color, #ecf0f1);
+  font-weight: 600;
+}
+
+/* Duyarlı tasarım ayarları */
 @media (max-width: 768px) {
   .dashboard-header {
     flex-direction: column;

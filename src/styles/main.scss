@@ -1,78 +1,279 @@
-@use "base/variables" as vars;
-@use "base/reset";
-@use "base/base";
-@use "layout/layout";
-@use "layout/sidebar";
-@use "components/buttons";
-@use "components/cards";
-@use "components/badges";
-@use "components/dashboard-widgets";
-@use "components/charts";
-@use "components/chat";
+@use "@/styles/base/variables" as vars;
+@use "@/styles/base/reset";
+@use "@/styles/base/base";
+@use "@/styles/layout/layout";
+// @use "@/styles/layout/sidebar"; // Styles are now in AppSidebar.vue
+@use "@/styles/components/buttons";
+@use "@/styles/components/cards";
+@use "@/styles/components/badges";
+@use "@/styles/components/dashboard-widgets";
+@use "@/styles/components/charts";
+@use "@/styles/components/chat";
 
-// Import Bootstrap after @use rules
-@import "bootstrap/scss/bootstrap";
+// Import Bootstrap using modern @use syntax
+// First import core utilities needed for customization
+@use "bootstrap/scss/functions" as bootstrap-functions;
+@use "bootstrap/scss/variables" as bootstrap-vars;
+@use "bootstrap/scss/mixins" as bootstrap-mixins;
+
+// Create a separate forward file to handle all Bootstrap components
+@forward "bootstrap/scss/root";
+@forward "bootstrap/scss/reboot";
+@forward "bootstrap/scss/type";
+@forward "bootstrap/scss/images";
+@forward "bootstrap/scss/containers";
+@forward "bootstrap/scss/grid";
+@forward "bootstrap/scss/tables";
+@forward "bootstrap/scss/forms";
+@forward "bootstrap/scss/buttons";
+@forward "bootstrap/scss/transitions";
+@forward "bootstrap/scss/dropdown";
+@forward "bootstrap/scss/button-group";
+@forward "bootstrap/scss/nav";
+@forward "bootstrap/scss/navbar";
+@forward "bootstrap/scss/card";
+@forward "bootstrap/scss/accordion";
+@forward "bootstrap/scss/breadcrumb";
+@forward "bootstrap/scss/pagination";
+@forward "bootstrap/scss/badge";
+@forward "bootstrap/scss/alert";
+@forward "bootstrap/scss/progress";
+@forward "bootstrap/scss/list-group";
+@forward "bootstrap/scss/close";
+@forward "bootstrap/scss/toasts";
+@forward "bootstrap/scss/modal";
+@forward "bootstrap/scss/tooltip";
+@forward "bootstrap/scss/popover";
+@forward "bootstrap/scss/carousel";
+@forward "bootstrap/scss/spinners";
+@forward "bootstrap/scss/offcanvas";
+@forward "bootstrap/scss/placeholders";
+@forward "bootstrap/scss/utilities/api";
+
+// Import Bootstrap Icons as regular CSS import
+@import "bootstrap-icons/font/bootstrap-icons.css";
 
 // Theme colors
 :root {
-  --primary: #3a75c4;
+  --primary-color: #2c3e50; // Updated from ornekindex
+  --secondary-color: #3498db; // Updated from ornekindex
+  --success-color: #27ae60; // Updated from ornekindex
+  --warning-color: #f39c12; // Updated from ornekindex
+  --danger-color: #e74c3c; // Updated from ornekindex
+  --light-color: #ecf0f1; // Updated from ornekindex
+  --dark-color: #34495e; // Updated from ornekindex
+
+  --primary: var(--primary-color); // Link to new variable
   --primary-light: #4e89d8;
   --primary-dark: #2a65b4;
-  --secondary: #6c757d;
-  --success: #28a745;
-  --danger: #dc3545;
-  --warning: #ffc107;
+  --secondary: var(--secondary-color); // Link to new variable
+  --success: var(--success-color); // Link to new variable
+  --danger: var(--danger-color); // Link to new variable
+  --warning: var(--warning-color); // Link to new variable
   --info: #17a2b8;
-  --light: #f8f9fa;
-  --dark: #343a40;
-  --bg-sidebar: #2c3e50;
+  --light: var(--light-color); // Link to new variable
+  --dark: var(--dark-color); // Link to new variable
+
+  --bg-sidebar: var(--primary-color); // Use primary color for sidebar bg
   --bg-main: #f4f6f9;
+  --bg-content: #f5f7fa; // Updated from ornekindex body bg
   --border-color: #dee2e6;
   --text-color: #333;
   --text-muted: #6c757d;
   --shadow-sm: 0 .125rem .25rem rgba(0,0,0,.075);
   --shadow: 0 .5rem 1rem rgba(0,0,0,.15);
+
+  --status-planned-bg: #e3f2fd;
+  --status-planned-text: #1976d2;
+  --status-in-progress-bg: #fff8e1;
+  --status-in-progress-text: #ff8f00;
+  --status-delayed-bg: #ffebee;
+  --status-delayed-text: #d32f2f;
+  --status-completed-bg: #e8f5e9;
+  --status-completed-text: #388e3c;
+
+  --material-required-bg: #fff3e0;
+  --material-available-bg: #e8f5e9;
+  --material-critical-bg: #ffebee;
 }
 
 // Global styles
 body {
-  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
-  background-color: var(--bg-main);
-  color: var(--text-color);
-  line-height: 1.5;
-  margin: 0;
-  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--bg-content); // Use variable defined above
+}
+
+// Card styles
+.card {
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  transition: transform 0.3s;
+
+  &:hover {
+    transform: translateY(-5px);
+  }
+}
+
+.card-header {
+  background-color: white; // from ornekindex
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1); // from ornekindex
+  font-weight: 600;
 }
 
 // Status badges
 .status-badge {
-  display: inline-block;
-  padding: 0.25em 0.6em;
-  font-size: 0.75em;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 12px;
   font-weight: 600;
-  border-radius: 0.25rem;
-  text-align: center;
-  white-space: nowrap;
-  vertical-align: middle;
 }
 
-.status-planned { background-color: #cfe2ff; color: #084298; }
-.status-progress { background-color: #fff3cd; color: #664d03; }
-.status-delayed { background-color: #f8d7da; color: #842029; }
-.status-completed { background-color: #d1e7dd; color: #0f5132; }
-
-// Chart containers
-.chart-container {
-  position: relative;
-  margin: auto;
-  height: 250px;
+.status-planned {
+  background-color: var(--status-planned-bg);
+  color: var(--status-planned-text);
 }
 
-// Responsive breakpoints
-$sidebar-width: vars.$sidebar-width;
-$sidebar-collapsed-width: vars.$sidebar-collapsed-width;
-$header-height: vars.$header-height;
-$footer-height: 50px;
+.status-in-progress {
+  background-color: var(--status-in-progress-bg);
+  color: var(--status-in-progress-text);
+}
+
+.status-delayed {
+  background-color: var(--status-delayed-bg);
+  color: var(--status-delayed-text);
+}
+
+.status-completed {
+  background-color: var(--status-completed-bg);
+  color: var(--status-completed-text);
+}
+
+// Priority borders
+.priority-high {
+  border-left: 4px solid var(--danger-color);
+}
+
+.priority-medium {
+  border-left: 4px solid var(--warning-color);
+}
+
+.priority-low {
+  border-left: 4px solid var(--success-color);
+}
+
+// AI Chatbot button styles
+.ai-chatbot {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.ai-chatbot-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: var(--secondary-color); // Use variable
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.3s;
+
+  &:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: var(--danger-color); // Use variable
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// Progress bar style
+.progress-thin {
+  height: 5px;
+}
+
+// Custom table style
+.custom-table th {
+  background-color: var(--light-color); // Use variable
+  font-weight: 600;
+}
+
+// Material status styles
+.material-required {
+  background-color: var(--material-required-bg); // Use variable
+}
+
+.material-available {
+  background-color: var(--material-available-bg); // Use variable
+}
+
+.material-critical {
+  background-color: var(--material-critical-bg); // Use variable
+}
+
+// Gantt chart styles
+.gantt-container {
+  font-size: 12px;
+}
+
+.gantt-header {
+  font-weight: bold;
+}
+
+.gantt-day {
+  border: 1px solid #dee2e6;
+  padding: 2px;
+}
+
+.gantt-row {
+  height: 30px;
+  display: flex;
+  align-items: center;
+}
+
+.gantt-bar {
+  height: 20px;
+  border-radius: 3px;
+  position: absolute;
+  top: 5px;
+}
+
+// Chat modal styles
+.chat-message {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  max-width: 80%;
+}
+
+.user-message {
+  background-color: #e3f2fd; // from ornekindex
+  margin-left: auto;
+}
+
+.ai-message {
+  background-color: #f1f1f1; // from ornekindex
+  margin-right: auto;
+}
 
 // Scrollbar styling
 ::-webkit-scrollbar {

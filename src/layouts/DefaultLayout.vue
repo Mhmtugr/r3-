@@ -1,6 +1,6 @@
 <template>
   <div class="app-container" :class="{ 'sidebar-collapsed': isSidebarCollapsed, 'dark-mode': isDarkMode }">
-    <Sidebar @toggle-sidebar="toggleSidebar" :is-collapsed="isSidebarCollapsed" />
+    <AppSidebar :is-collapsed="isSidebarCollapsed" />
     <div class="main-content">
       <AppHeader 
         :username="username" 
@@ -19,7 +19,6 @@
       </main>
       <AppFooter />
     </div>
-    <!-- AI Chatbot Components -->
     <AIChatbotButton v-if="isAuthenticated" />
     <AIChatModal v-if="isAIChatModalOpen" @close="closeAIChatModal" />
     <Notifications />
@@ -32,7 +31,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/store/auth';
 import { useTechnicalStore } from '@/store/technical';
 import AppHeader from '@/components/app/AppHeader.vue';
-import Sidebar from '@/components/app/Sidebar.vue';
+import AppSidebar from '@/components/app/AppSidebar.vue';
 import AppFooter from '@/components/app/AppFooter.vue';
 import Notifications from '@/components/ui/Notifications.vue';
 import AIChatbotButton from '@/components/ai/AIChatbotButton.vue';
@@ -105,7 +104,9 @@ watch(
 </script>
 
 <style lang="scss">
-@use "@/styles/base/variables" as vars;
+// Define variables locally instead of importing them to avoid build issues
+$sidebar-width: 250px;
+$sidebar-collapsed-width: 70px;
 
 .app-container {
   display: flex;
@@ -116,10 +117,11 @@ watch(
     flex: 1;
     display: flex;
     flex-direction: column;
-    margin-left: 250px; /* Sidebar genişliği */
+    margin-left: $sidebar-width; /* Use local variable */
     transition: margin-left 0.3s ease;
     min-height: 100vh;
-    background-color: var(--bg-content, #f8f9fa);
+    background-color: var(--bg-content, #f5f7fa); /* Updated to match ornekindex.html */
+    padding: 0;
     
     .content {
       flex: 1;
@@ -136,7 +138,7 @@ watch(
 
   &.sidebar-collapsed {
     .main-content {
-      margin-left: 70px; /* Daraltılmış sidebar genişliği */
+      margin-left: $sidebar-collapsed-width; /* Use local variable */
     }
   }
 }
@@ -159,5 +161,69 @@ watch(
       margin-left: 0 !important;
     }
   }
+}
+
+/* Tab içerik stilleri - ornekindex.html'den */
+.tab-content {
+  width: 100%;
+}
+
+.tab-pane {
+  display: none;
+  
+  &.fade {
+    transition: opacity 0.15s linear;
+  }
+  
+  &.fade.show {
+    opacity: 1;
+  }
+  
+  &.active {
+    display: block;
+  }
+}
+
+/* AI Chatbot stili - ornekindex.html'den */
+.ai-chatbot {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.ai-chatbot-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: var(--secondary-color, #3498db);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.3s;
+  
+  &:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: var(--danger-color, #e74c3c);
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>
