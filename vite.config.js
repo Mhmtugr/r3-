@@ -79,7 +79,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': resolveAbsolutePath('src'),
       'vue': 'vue/dist/vue.esm-bundler.js',
       // Hatalı dosya yollarını önlemek için ekstra alias'lar
       '@views': resolveAbsolutePath('src/modules'),
