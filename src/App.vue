@@ -3,7 +3,7 @@
     <div v-if="loading" class="app-loading">
       <div class="spinner"></div>
       <div class="brand">METS</div>
-      <div class="loading-text">{{ loadingMessage }}</div>
+      <div class="loading-text">Yükleniyor...</div>
     </div>
     <router-view v-else />
     
@@ -12,7 +12,9 @@
     <AIChatModal v-if="isAIChatModalOpen" @close="closeAIChatModal" :isVisible="isAIChatModalOpen" />
     
     <!-- Toast bildirim sistemi -->
-    <Notifications />
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <!-- Toast bildirimleri buraya eklenecek -->
+    </div>
   </div>
 </template>
 
@@ -21,7 +23,6 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import AIChatbotButton from '@/components/ai/AIChatbotButton.vue';
 import AIChatModal from '@/components/ai/AIChatModal.vue';
-import Notifications from '@/components/ui/Notifications.vue';
 import { useTechnicalStore } from '@/store/technical';
 import { useAuthStore } from '@/store/auth';
 
@@ -29,8 +30,7 @@ export default {
   name: 'App',
   components: {
     AIChatbotButton,
-    AIChatModal,
-    Notifications
+    AIChatModal
   },
   setup() {
     const router = useRouter();
@@ -39,7 +39,6 @@ export default {
     
     // Yükleme durumu
     const loading = ref(true);
-    const loadingMessage = ref('Yükleniyor...');
     
     // AI Chat Modal durumu
     const isAIChatModalOpen = computed(() => technicalStore.isAIChatModalOpen);
@@ -59,7 +58,6 @@ export default {
       // Eğer kullanıcı giriş yapmamışsa ve URL'de demo=true parametresi varsa veya geliştirme modundaysak
       if (!authStore.isAuthenticated && (window.location.search.includes('demo=true') || import.meta.env.DEV)) {
         console.log('Otomatik demo giriş başlatılıyor');
-        loadingMessage.value = 'Demo hesabı hazırlanıyor...';
         try {
           const result = await authStore.demoLogin();
           if (result.success) {
@@ -75,86 +73,30 @@ export default {
     
     // Auth durumunu kontrol et
     onMounted(async () => {
-      // Minimum ve maksimum yükleme sürelerini ayarla
-      const MIN_LOADING_TIME = 800;
-      const MAX_LOADING_TIME = 6000;
-      const startTime = Date.now();
-      
-      // Maksimum yükleme süresi için zaman aşımı
-      const timeoutId = setTimeout(() => {
-        if (loading.value) {
-          console.warn('Auth durumu kontrolü zaman aşımına uğradı, yükleme ekranı kapatılıyor');
-          loading.value = false;
-        }
-      }, MAX_LOADING_TIME);
-      
       try {
         console.log('Auth durumu kontrol ediliyor...');
-        loadingMessage.value = 'Kimlik bilgileri kontrol ediliyor...';
+        const result = await authStore.initialize();
         
-        // Firebase'in varlığını kontrol et
-        if (typeof window.firebase === 'undefined' || !window.firebase.auth) {
-          console.warn('Firebase yüklenemedi, demo moda geçiliyor');
-          loadingMessage.value = 'Demo moda geçiliyor...';
-          await autoDemoLogin();
-        } else {
-          // Promise.race ile ya auth durumu kontrolünü ya da timeout'u bekle
-          const authPromise = new Promise(async (resolve) => {
-            try {
-              const result = await authStore.initialize();
-              resolve(result);
-            } catch (error) {
-              resolve({ success: false, error });
-            }
-          });
-          
-          const timeoutPromise = new Promise(resolve => 
-            setTimeout(() => resolve({ success: false, error: 'timeout' }), 5000)
-          );
-          
-          const result = await Promise.race([authPromise, timeoutPromise]);
-          
-          if (result.error === 'timeout') {
-            console.warn('Auth durumu kontrolü zaman aşımına uğradı');
-            loadingMessage.value = 'Bağlantı zaman aşımına uğradı, devam ediliyor...';
-            // Demo giriş yapmayı dene
-            await autoDemoLogin();
-          } else if (result.success) {
-            loadingMessage.value = 'Kimlik doğrulama başarılı...';
-            if (!result.isAuthenticated) {
-              // Geliştirme ortamında otomatik demo giriş
-              await autoDemoLogin();
-            }
-          } else {
-            console.error('Auth initialize hatası:', result.error);
-            loadingMessage.value = 'Giriş hatası, devam ediliyor...';
-            // Demo giriş yapmayı dene
+        if (result.success) {
+          if (!result.isAuthenticated) {
+            // Geliştirme ortamında otomatik demo giriş
             await autoDemoLogin();
           }
         }
       } catch (error) {
-        console.error('Auth initialize genel hatası:', error);
-        loadingMessage.value = 'Bir hata oluştu, devam ediliyor...';
-        // Demo giriş yapmayı dene
-        await autoDemoLogin();
+        console.error('Auth initialize hatası:', error);
       } finally {
-        clearTimeout(timeoutId); // Zaman aşımını temizle
-        
         // Kimlik durumu kontrolü bittikten sonra yükleme ekranını kaldır
-        // Minimum gösterme süresini garantilemek için
-        const elapsed = Date.now() - startTime;
-        const remainingTime = Math.max(0, MIN_LOADING_TIME - elapsed);
-        
+        // Minimum gösterme süresini garantilemek için kısa gecikme
         setTimeout(() => {
           loading.value = false;
           console.log('Uygulama yükleme tamamlandı, dashboard görüntüleniyor');
-        }, remainingTime);
+        }, 800);
       }
     });
     
     return {
       loading,
-      loadingMessage,
       isAuthenticated,
       isAIChatModalOpen,
       closeAIChatModal
@@ -172,8 +114,6 @@ export default {
   -moz-osx-font-smoothing: grayscale;
   color: #2c3e50;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
 .app-loading {
