@@ -555,3 +555,42 @@ export function useAiService() {
     setApiKey
   };
 }
+
+// main.js dosyasında kullanılan aiService örneğini oluşturup dışa aktarıyorum
+export const aiService = {
+  sendMessage: async (message) => {
+    // Temel yapay zeka yanıtı sağlayan basit bir fonksiyon
+    const response = {
+      text: `Sorgunuza yanıt: ${message}. Detaylı bilgi için lütfen ilgili sayfada yapay zeka özelliklerini kullanın.`,
+      source: 'MehmetEndüstriyelTakip Sistemi'
+    };
+    return response;
+  },
+  
+  queryTechnical: async (question) => {
+    // Teknik sorgulamalar için basit bir fonksiyon
+    return {
+      answer: {
+        text: `Sorgunuz işleme alındı: ${question}. Daha spesifik bilgiler için lütfen teknik dokümantasyon sayfasını kullanın.`,
+        reference: 'RM 36 Serisi Genel Teknik Şartname'
+      },
+      relatedDocs: [
+        { id: 'doc7', name: 'RM 36 Serisi Genel Teknik Şartname', revision: '3.0' }
+      ]
+    };
+  },
+  
+  generateInsights: async () => {
+    // Temel öngörüler sağlayan fonksiyon
+    return [
+      {
+        title: "Yapay Zeka Öngörüleri",
+        description: "Yapay zeka öngörüleri ve analizler için ilgili sayfayı ziyaret edin.",
+        importance: "medium",
+        type: "info",
+        source: "MehmetEndüstriyelTakip Sistemi",
+        timestamp: new Date()
+      }
+    ];
+  }
+};

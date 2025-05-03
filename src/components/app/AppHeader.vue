@@ -57,7 +57,7 @@ const toggleDarkMode = () => {
 </script>
 
 <style lang="scss" scoped>
-@import "../../styles/base/_variables.scss"; // Use SASS variables
+@use "../../styles/base/_variables" as vars; // Eski @import yerine modern @use kullanımı
 
 .app-header {
   display: flex;
@@ -66,7 +66,7 @@ const toggleDarkMode = () => {
   padding: 0.75rem 1.5rem;
   background-color: var(--bg-header, #ffffff); // Use CSS var with fallback
   border-bottom: 1px solid var(--border-color, #dee2e6); // Use CSS var
-  height: $header-height;
+  height: vars.$header-height; // vars. öneki eklenmiş hali
   position: sticky; // Make header sticky
   top: 0;
   z-index: 1020; // Ensure it's above content but below sidebar overlay
