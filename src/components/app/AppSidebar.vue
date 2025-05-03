@@ -88,7 +88,7 @@ defineProps({
 
 <style lang="scss" scoped>
 // Eski @import yerine modern @use kullanımı
-@use "@/styles/base/variables" as vars;
+@use "../../styles/base/_variables" as vars;
 
 .sidebar {
   width: vars.$sidebar-width;
