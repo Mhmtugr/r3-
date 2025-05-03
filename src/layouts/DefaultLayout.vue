@@ -167,27 +167,6 @@ $sidebar-collapsed-width: 70px;
   }
 }
 
-/* Tab içerik stilleri - ornekindex.html'den */
-.tab-content {
-  width: 100%;
-}
-
-.tab-pane {
-  display: none;
-  
-  &.fade {
-    transition: opacity 0.15s linear;
-  }
-  
-  &.fade.show {
-    opacity: 1;
-  }
-  
-  &.active {
-    display: block;
-  }
-}
-
 /* AI Chatbot stili - ornekindex.html'den */
 .ai-chatbot {
   position: fixed;
