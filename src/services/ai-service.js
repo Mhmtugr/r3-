@@ -1,759 +1,557 @@
 import { ref } from 'vue';
-// Corrected import paths assuming stores are exported from these module files
-import { useOrders } from '@/modules/orders/useOrders'; // Corrected function name
-import { useStockManagement } from '@/modules/inventory/useStockManagement'; // Corrected import name
-import { useTechnicalStore } from '@/store/technical.js'; // Added .js for clarity
-import logger from '@/utils/logger';
-
-// API configuration - Using environment variables for security
-const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || 'demo-key'; // Use environment variable
-const API_URL = import.meta.env.VITE_DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions';
-
-// Service state
-const isInitialized = ref(false);
-const isLoading = ref(false);
-const error = ref(null);
+import { useTechnicalStore } from '@/store/technical';
+import { useErpService } from '@/services/erp-service';
 
 /**
- * AI Service class - Used for AI integration
+ * Yapay Zeka Servisi
+ * DeepSeek API entegrasyonu ve kullanıcı sorguları için yapay zeka servisi
  */
-class AIService {
-  constructor() {
-    this.isInitialized = false;
-    this.apiKey = API_KEY;
-    this.modelConfig = {
-      modelName: 'deepseek-chat',
-      temperature: 0.7,
-      maxTokens: 1000
-    };
-    // Add conversation history support
-    this.conversationHistory = [];
-    // Max conversation history entries to keep
-    this.maxHistoryLength = 10;
-  }
+export function useAiService() {
+  const isProcessing = ref(false);
+  const lastResponse = ref(null);
+  const history = ref([]);
+  const technicalStore = useTechnicalStore();
+  const erpService = useErpService();
+
+  // DeepSeek API yapılandırması
+  const deepseekConfig = {
+    apiKey: '', // Production'da process.env'den alınabilir
+    modelName: 'deepseek-chat',
+    temperature: 0.7,
+    maxTokens: 1000
+  };
 
   /**
-   * Initialize the service
+   * DeepSeek API anahtarını ayarla
+   * @param {string} apiKey - API anahtarı
    */
-  initialize() {
-    logger.info('Initializing AI service...');
-    
+  const setApiKey = (apiKey) => {
+    deepseekConfig.apiKey = apiKey;
+    localStorage.setItem('deepseekApiKey', apiKey);
+  };
+
+  /**
+   * Saklanan API anahtarını yükle
+   */
+  const loadApiKey = () => {
     try {
-      this.isInitialized = true;
-      logger.info('AI service successfully initialized.');
-    } catch (err) {
-      logger.error('AI service initialization error:', err);
-      error.value = 'An error occurred while initializing the AI service.';
-    }
-  }
-
-  /**
-   * Answer the user's question
-   * @param {string} question - User's question
-   * @returns {Promise<string>} - AI response
-   */
-  async askQuestion(question) {
-    try {
-      isLoading.value = true;
-      
-      // Collect system data
-      const systemData = await this.getSystemData();
-      
-      // Add user question to conversation history
-      this.addToConversationHistory('user', question);
-      
-      // Check if we should use the real API or mock response
-      let response;
-      if (API_KEY !== 'demo-key' && !import.meta.env.DEV) {
-        // Use real API in production when API key is available
-        response = await this.callDeepseekAPI(question, systemData);
-      } else {
-        // Use mock response in development or when no API key is available
-        response = this.generateMockResponse(question, systemData);
+      const savedApiKey = localStorage.getItem('deepseekApiKey') || window.DEEPSEEK_API_KEY || '';
+      if (savedApiKey) {
+        deepseekConfig.apiKey = savedApiKey;
+        return true;
       }
-      
-      // Add AI response to conversation history
-      this.addToConversationHistory('assistant', response);
-      
-      isLoading.value = false;
-      return response;
-    } catch (err) {
-      logger.error('AI query error:', err);
-      error.value = 'An error occurred during the AI query.';
-      isLoading.value = false;
-      throw err;
-    }
-  }
-
-  /**
-   * Add message to conversation history
-   * @param {string} role - 'user' or 'assistant'
-   * @param {string} content - Message content
-   */
-  addToConversationHistory(role, content) {
-    this.conversationHistory.push({
-      role,
-      content,
-      timestamp: new Date()
-    });
-    
-    // Limit conversation history length
-    if (this.conversationHistory.length > this.maxHistoryLength * 2) {
-      // Keep the most recent conversations
-      this.conversationHistory = this.conversationHistory.slice(-this.maxHistoryLength * 2);
-    }
-  }
-
-  /**
-   * Generate AI insights about production trends
-   * @returns {Promise<Object>} - Analysis results
-   */
-  async generateProductionInsights() {
-    try {
-      isLoading.value = true;
-      
-      // Collect system data
-      const systemData = await this.getSystemData();
-      
-      // Use actual API or mock response
-      let response;
-      if (API_KEY !== 'demo-key' && !import.meta.env.DEV) {
-        // Create a specialized prompt for production analysis
-        const analysisPrompt = `
-          Analyze the following production data and provide insights about:
-          1. Production efficiency trends
-          2. Potential bottlenecks
-          3. Delayed order patterns
-          4. Critical material shortages
-          5. Recommended actions to improve efficiency
-          
-          System data for analysis:
-          ${JSON.stringify(systemData, null, 2)}
-          
-          Format the response as a JSON object with sections for each category.
-        `;
-        
-        response = await this.callDeepseekAPI(analysisPrompt, systemData);
-        try {
-          // Parse JSON response
-          return JSON.parse(response);
-        } catch (e) {
-          // If parsing fails, return as text
-          return { analysisText: response };
-        }
-      } else {
-        // Generate mock insights
-        return this.generateMockInsights(systemData);
-      }
-    } catch (err) {
-      logger.error('AI insights generation error:', err);
-      error.value = 'An error occurred while generating AI insights.';
-      isLoading.value = false;
-      throw err;
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  /**
-   * Generate mock production insights
-   * @param {Object} systemData - System data
-   * @returns {Object} - Mock insights
-   */
-  generateMockInsights(systemData) {
-    const totalOrders = systemData.orders.length || 0;
-    const delayedOrders = systemData.orders.filter(o => o.status === 'delayed').length || 0;
-    const delayRate = totalOrders > 0 ? (delayedOrders / totalOrders * 100).toFixed(1) : 0;
-    
-    const criticalMaterials = systemData.materials?.filter(m => m.status === 'Kritik').length || 0;
-    const totalMaterials = systemData.materials?.length || 0;
-    
-    return {
-      efficiencyTrends: {
-        currentEfficiency: systemData.stats.productionEfficiency || 78,
-        weeklyChange: "+2.3%",
-        monthlyChange: "-1.5%",
-        insights: "Üretim verimliliği son haftada artış göstermiş ancak aylık bazda %1.5 düşüş yaşanmıştır. CB tipi hücrelerde verimlilik diğerlerine göre daha yüksektir."
-      },
-      bottlenecks: {
-        primaryBottleneck: "Malzeme Tedarik Süreci",
-        secondaryBottleneck: "Tasarım Onay Süreci",
-        affectedOrders: delayedOrders,
-        insights: "Tedarik sürecindeki gecikmeler, özellikle Siemens röleleri için sipariş süresinin uzaması, projelerde gecikmeye neden olmaktadır."
-      },
-      delayedOrders: {
-        count: delayedOrders,
-        percentage: delayRate,
-        patterns: "Gecikmelerin %60'ı malzeme tedarikinden, %30'u tasarım değişikliklerinden, %10'u ise üretim kapasitesinden kaynaklanmaktadır.",
-        insights: "Gecikmeler en çok CB tipi hücrelerde görülmektedir. En sık geciken müşteri siparişleri: AYEDAŞ, ENERJİSA."
-      },
-      materialShortages: {
-        criticalCount: criticalMaterials,
-        criticalPercentage: totalMaterials > 0 ? (criticalMaterials / totalMaterials * 100).toFixed(1) : 0,
-        mostCritical: ["Siemens 7SJ85 Röle", "VG4 Kesici", "Akım Trafosu"],
-        insights: "Kritik malzemeler için alternatif tedarikçilere yönelmek ve minimum stok seviyelerini artırmak önerilir."
-      },
-      recommendations: [
-        "Tedarikçilerle yeni anlaşmalar yaparak teslimat sürelerini kısaltın",
-        "CB tipi hücreler için tasarım sürecini optimize edin",
-        "Kritik malzemeler için minimum stok seviyelerini %15 artırın",
-        "Müşteri ile tasarım onay sürecini hızlandıracak yeni bir iletişim sistemi kurun"
-      ]
-    };
-  }
-  
-  /**
-   * Analyze specific order for optimization
-   * @param {string} orderId - Order ID to analyze
-   * @returns {Promise<Object>} - Order analysis
-   */
-  async analyzeOrder(orderId) {
-    try {
-      isLoading.value = true;
-      
-      // Get system data
-      const systemData = await this.getSystemData();
-      
-      // Find specific order
-      const order = systemData.orders.find(o => o.id === orderId || o.orderNo === orderId);
-      
-      if (!order) {
-        throw new Error(`Sipariş bulunamadı: ${orderId}`);
-      }
-      
-      // Use actual API or mock
-      if (API_KEY !== 'demo-key' && !import.meta.env.DEV) {
-        const analysisPrompt = `
-          Analyze the following specific order and provide optimization recommendations:
-          ${JSON.stringify(order, null, 2)}
-          
-          Include:
-          1. Risk assessment 
-          2. Critical path analysis
-          3. Resource optimization suggestions
-          4. Schedule improvement options
-          
-          Format the response as a JSON object with sections for each category.
-        `;
-        
-        const response = await this.callDeepseekAPI(analysisPrompt, systemData);
-        try {
-          // Parse JSON response
-          return JSON.parse(response);
-        } catch (e) {
-          // If parsing fails, return as text
-          return { analysisText: response };
-        }
-      } else {
-        // Generate mock order analysis
-        return this.generateMockOrderAnalysis(order);
-      }
-    } catch (err) {
-      logger.error('Order analysis error:', err);
-      error.value = `An error occurred while analyzing order: ${err.message}`;
-      isLoading.value = false;
-      throw err;
-    } finally {
-      isLoading.value = false;
-    }
-  }
-  
-  /**
-   * Generate mock order analysis
-   * @param {Object} order - Order to analyze
-   * @returns {Object} - Mock analysis
-   */
-  generateMockOrderAnalysis(order) {
-    // Calculate days until delivery
-    const today = new Date();
-    const deliveryDate = order.cells && order.cells[0]?.deliveryDate 
-      ? new Date(order.cells[0].deliveryDate) 
-      : null;
-      
-    const daysUntilDelivery = deliveryDate 
-      ? Math.ceil((deliveryDate - today) / (1000 * 60 * 60 * 24))
-      : 0;
-      
-    // Calculate if order is at risk
-    const isDelayed = order.status === 'delayed';
-    const progress = order.progress || 0;
-    const expectedProgress = daysUntilDelivery <= 0 ? 100 : (100 - (daysUntilDelivery / 180 * 100));
-    const progressDifference = progress - expectedProgress;
-    
-    const riskLevel = isDelayed ? 'Yüksek' : 
-                    progressDifference < -15 ? 'Orta' :
-                    progressDifference < 0 ? 'Düşük' : 'Minimal';
-    
-    return {
-      orderInfo: {
-        orderNo: order.orderNo,
-        customer: order.customerInfo?.name,
-        products: order.cells?.map(cell => `${cell.productTypeCode} (${cell.quantity} adet)`) || [],
-        currentProgress: `%${progress}`,
-        status: order.status
-      },
-      riskAssessment: {
-        riskLevel: riskLevel,
-        deliveryRisk: daysUntilDelivery <= 0 
-          ? 'Termin tarihi geçmiş' 
-          : `${daysUntilDelivery} gün kalan, ${isDelayed ? 'gecikmeli' : 'plan dahilinde'}`,
-        progressGap: isNaN(progressDifference) ? 0 : progressDifference.toFixed(1) + '%',
-        criticalIssues: isDelayed 
-          ? ["Malzeme tedarik gecikmesi", "Teknik onay süreci uzaması"] 
-          : []
-      },
-      criticalPath: {
-        currentPhase: progress <= 10 ? 'Tasarım' :
-                    progress <= 30 ? 'Malzeme Tedarik' :
-                    progress <= 60 ? 'Üretim' :
-                    progress <= 90 ? 'Test' : 'Sevkiyat',
-        bottlenecks: isDelayed 
-          ? ["Malzeme tedariki", "Teknik çizim onayları"] 
-          : ["Standart üretim süreci"],
-        dependentTasks: ["Teknik çizim onayı", "Malzeme siparişi", "Üretime başlama", "FAT testi", "Sevkiyat"]
-      },
-      optimizationSuggestions: {
-        resources: [
-          "Üretim ekibine 1 kişi takviye yapılması",
-          "Tedarikçi ile acil durum toplantısı yapılması",
-          "Alternatif malzeme tedarikçilerinin değerlendirilmesi"
-        ],
-        schedule: [
-          "FAT testinin 2 gün öne çekilmesi",
-          "Sevkiyat planının yeniden değerlendirilmesi",
-          isDelayed ? "Müşteri ile termin tarihi revizyonu görüşülmesi" : "Standart plan takibi"
-        ],
-        priorities: [
-          "Kritik malzeme teslimat takibi",
-          "Teknik çizimlerin önceliklendirilmesi",
-          "Üretim kapasitesi optimizasyonu"
-        ]
-      },
-      recommendations: [
-        isDelayed 
-          ? "Müşteri ile iletişime geçilip yeni termin tarihi belirlenmesi" 
-          : "Mevcut planın takip edilmesi",
-        "Kritik malzemelerin teslimat takibinin günlük yapılması",
-        "Üretim sürecinde öncelik verilmesi",
-        progressDifference < -10 ? "Fazla mesai planlaması yapılması" : "Standart mesai takibi"
-      ]
-    };
-  }
-
-  /**
-   * Predict equipment maintenance needs based on historical data
-   * @param {string} equipmentId - Equipment ID to analyze
-   * @returns {Promise<Object>} - Maintenance predictions
-   */
-  async predictMaintenance(equipmentId) {
-    try {
-      isLoading.value = true;
-      
-      // Get system data
-      const systemData = await this.getSystemData();
-      
-      // Find specific equipment data (would come from a dedicated store in production)
-      const equipmentData = systemData.technical?.find(doc => 
-        doc.equipment?.id === equipmentId || doc.id === equipmentId
-      );
-      
-      if (!equipmentData) {
-        throw new Error(`Ekipman bulunamadı: ${equipmentId}`);
-      }
-      
-      // Use actual API or mock
-      if (API_KEY !== 'demo-key' && !import.meta.env.DEV) {
-        const analysisPrompt = `
-          Analyze the following equipment data and predict maintenance needs:
-          ${JSON.stringify(equipmentData, null, 2)}
-          
-          Include:
-          1. Failure probability in the next 30, 60, and 90 days
-          2. Most likely failure components
-          3. Recommended maintenance schedule
-          4. Cost-benefit analysis of preventive vs. reactive maintenance
-          
-          Format the response as a JSON object with sections for each category.
-        `;
-        
-        const response = await this.callDeepseekAPI(analysisPrompt, systemData);
-        try {
-          // Parse JSON response
-          return JSON.parse(response);
-        } catch (e) {
-          // If parsing fails, return as text
-          return { analysisText: response };
-        }
-      } else {
-        // Generate mock maintenance prediction
-        return this.generateMockMaintenancePrediction(equipmentData);
-      }
-    } catch (err) {
-      logger.error('Predictive maintenance error:', err);
-      error.value = `An error occurred while predicting maintenance: ${err.message}`;
-      throw err;
-    } finally {
-      isLoading.value = false;
-    }
-  }
-  
-  /**
-   * Generate mock maintenance prediction
-   * @param {Object} equipmentData - Equipment to analyze
-   * @returns {Object} - Mock prediction
-   */
-  generateMockMaintenancePrediction(equipmentData) {
-    // Calculate baseline risk based on age
-    const installDate = equipmentData.installDate ? new Date(equipmentData.installDate) : new Date('2023-01-01');
-    const now = new Date();
-    const ageInMonths = ((now - installDate) / (1000 * 60 * 60 * 24 * 30));
-    
-    // Baseline risk increases with age
-    const baselineRisk = Math.min(0.8, ageInMonths * 0.015);
-    
-    // Mock operating hours (assume 8 hours per day since installation)
-    const operatingHours = Math.floor(ageInMonths * 30 * 8);
-    
-    return {
-      equipmentInfo: {
-        id: equipmentData.id || 'unknown',
-        name: equipmentData.name || 'Bilinmeyen Ekipman',
-        type: equipmentData.type || 'Bilinmeyen Tip',
-        location: equipmentData.location || 'Belirtilmemiş',
-        installDate: equipmentData.installDate || 'Belirtilmemiş',
-        operatingHours: operatingHours
-      },
-      failureProbability: {
-        next30Days: Math.min(95, Math.round(baselineRisk * 100 * 0.7)),
-        next60Days: Math.min(95, Math.round(baselineRisk * 100 * 1.5)),
-        next90Days: Math.min(95, Math.round(baselineRisk * 100 * 2.3))
-      },
-      likelyFailureComponents: [
-        {
-          component: "Motor Rulmanı",
-          probability: Math.min(95, Math.round(baselineRisk * 100 * 1.2)),
-          estimatedReplacementCost: 3500
-        },
-        {
-          component: "Kontrol Paneli",
-          probability: Math.min(95, Math.round(baselineRisk * 100 * 0.8)),
-          estimatedReplacementCost: 5200
-        },
-        {
-          component: "Güç Kaynağı",
-          probability: Math.min(95, Math.round(baselineRisk * 100 * 0.6)),
-          estimatedReplacementCost: 2800
-        }
-      ],
-      recommendedMaintenance: {
-        nextServiceDate: new Date(now.setDate(now.getDate() + 30)).toISOString().split('T')[0],
-        maintenanceActions: [
-          "Motor rulmanlarının kontrol edilmesi ve gerekiyorsa değiştirilmesi",
-          "Kontrol paneli bağlantılarının sıkılması ve test edilmesi",
-          "Güç kaynağı diagnostiği yapılması",
-          "Tüm yağlama noktalarının kontrolü"
-        ],
-        estimatedServiceTime: "4 saat",
-        estimatedServiceCost: 2200
-      },
-      costBenefitAnalysis: {
-        preventiveMaintenance: {
-          cost: 2200,
-          riskReduction: "%75",
-          productionContinuity: "Yüksek"
-        },
-        reactiveMaintenance: {
-          estimatedDowntime: "2-5 gün",
-          estimatedCost: 9500,
-          productionLoss: "Yaklaşık 120 birim"
-        },
-        recommendation: "Önleyici bakım ekonomik olarak avantajlıdır. Reaktif bakım senaryosunda üretim kaybı ve ekipman değişim maliyetleri toplam maliyeti 4-5 kat artıracaktır."
-      }
-    };
-  }
-
-  /**
-   * Get conversation history for API context
-   * @returns {Array} - Formatted conversation history
-   */
-  getConversationHistoryForAPI() {
-    return this.conversationHistory.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
-  }
-
-  /**
-   * Collect system data from stores
-   * @returns {Object} - System data
-   */
-  async getSystemData() {
-    try {
-      // Get store instances
-      const ordersStore = useOrders();
-      const inventoryStore = useStockManagement(); // Corrected function call
-      const technicalStore = useTechnicalStore();
-      
-      // Collect data from stores (Ensure properties like activeOrders exist on the stores)
-      // Note: useOrders composable returns 'orders' ref, not 'activeOrders'. Adjusting accordingly.
-      // Also check properties returned by useInventoryStore and useTechnicalStore.
-      const systemData = {
-        orders: ordersStore.orders.value || [], // Adjusted to use the 'orders' ref from useOrders
-        // TODO: Determine correct source for general materials list from inventory composables (e.g., useMaterials or aggregate data)
-        materials: [], // Placeholder: useStockManagement doesn't directly provide a simple 'materialsList'
-        technical: technicalStore.technicalDocuments || [], // Verify 'technicalDocuments' exists on useTechnicalStore result
-        stats: {
-          totalOrders: ordersStore.totalOrderCount.value || 0, // Adjusted to use 'totalOrderCount' ref
-          // Assuming delayedOrders, criticalMaterials, productionEfficiency might need adjustments based on store content
-          delayedOrders: ordersStore.orders.value.filter(o => o.status === 'delayed').length || 0, // Example calculation
-          // TODO: Update criticalMaterials calculation based on the actual source of materials data
-          criticalMaterials: 0, // Placeholder: Needs actual source from inventory composables
-          productionEfficiency: 78 // Placeholder - Needs actual source from a store/composable
-        }
-      };
-      
-      return systemData;
     } catch (error) {
-      logger.error('Error collecting system data:', error);
-      // Provide default structure on error
+      console.error('API anahtarı yüklenemedi:', error);
+    }
+    return false;
+  };
+
+  /**
+   * Kullanıcı mesajını işler ve yapay zeka yanıtı döndürür
+   * @param {string} message - Kullanıcı mesajı
+   * @returns {Promise<Object>} - Yapay zeka yanıtı
+   */
+  const sendMessage = async (message) => {
+    isProcessing.value = true;
+    
+    try {
+      // API anahtarını yükle
+      if (!deepseekConfig.apiKey) {
+        const loaded = loadApiKey();
+        if (!loaded) {
+          return {
+            text: 'API anahtarı bulunamadı. Lütfen sistem yöneticinize başvurun.',
+            source: 'Sistem'
+          };
+        }
+      }
+      
+      // Mesaj geçmişine ekle
+      history.value.push({
+        role: 'user',
+        content: message,
+        timestamp: new Date()
+      });
+      
+      // Üretim ortamında gerçek DeepSeek API'ye bağlanılacak
+      // Şimdilik processQuery ile lokal simülasyon yapıyoruz
+      let response;
+      
+      try {
+        // Önce sisteme entegre olan verilerden enrich edilmiş bir yanıt bulmayı deneyelim
+        response = await processQueryWithSystemContext(message);
+      } catch (error) {
+        console.error('Zenginleştirilmiş sorgu işleme hatası:', error);
+        // Yerel işleme ile devam et
+        response = await processQuery(message);
+      }
+      
+      // Yanıt geçmişine ekle
+      history.value.push({
+        role: 'assistant',
+        content: response.text,
+        source: response.source,
+        timestamp: new Date()
+      });
+      
+      lastResponse.value = response;
+      return response;
+    } catch (error) {
+      console.error('AI servisi hatası:', error);
+      throw new Error('Mesaj işlenirken bir hata oluştu');
+    } finally {
+      isProcessing.value = false;
+    }
+  };
+
+  /**
+   * Sistem verileriyle zenginleştirilmiş sorgu işleme
+   * ERP, Teknik dokümanlar ve diğer sistemlerden veri çekip analiz yaparak cevap döner
+   * @param {string} query - Kullanıcı sorgusu
+   */
+  const processQueryWithSystemContext = async (query) => {
+    // Farklı sistemlerden veri toplama
+    const systemData = await getSystemData();
+    
+    // Sorgunun hangi kategoriye ait olduğunu belirle
+    const category = determineQueryCategory(query);
+    
+    // DeepSeek API için sistem mesajını ve kullanıcı sorgusunu hazırla
+    const messages = [
+      {
+        role: "system",
+        content: generateSystemMessage(category, systemData)
+      },
+      {
+        role: "user",
+        content: query
+      }
+    ];
+    
+    // Gerçek DeepSeek API için hazırlık
+    // Bu fonksiyon, production'da gerçek API'ye bağlanacak
+    // return await callDeepSeekAPI(messages);
+    
+    // Simülasyon için:
+    return await simulateDeepSeekResponse(query, category, systemData);
+  };
+  
+  /**
+   * Kullanıcı sorgusunun kategorisini belirle
+   */
+  const determineQueryCategory = (query) => {
+    const lowerQuery = query.toLowerCase();
+    
+    if (lowerQuery.includes('üretim') || lowerQuery.includes('imalat') || lowerQuery.includes('montaj')) {
+      return 'production';
+    }
+    if (lowerQuery.includes('stok') || lowerQuery.includes('malzeme') || lowerQuery.includes('envanter')) {
+      return 'inventory';
+    }
+    if (lowerQuery.includes('sipariş') || lowerQuery.includes('müşteri') || lowerQuery.includes('teslim')) {
+      return 'orders';
+    }
+    if (lowerQuery.includes('teknik') || lowerQuery.includes('şartname') || lowerQuery.includes('trafo') || lowerQuery.includes('doküman')) {
+      return 'technical';
+    }
+    
+    return 'general';
+  };
+  
+  /**
+   * Kategori ve sistem verilerine göre yapay zeka için sistem mesajını oluştur
+   */
+  const generateSystemMessage = (category, systemData) => {
+    let baseMessage = "Sen MehmetEndüstriyelTakip sisteminin yapay zeka asistanısın. Orta gerilim hücre üretimi yapan bir şirkete ait sistemlere erişimin var. ";
+    
+    switch (category) {
+      case 'production':
+        baseMessage += "Üretim verileri: " + JSON.stringify(systemData.production);
+        break;
+      case 'inventory':
+        baseMessage += "Envanter verileri: " + JSON.stringify(systemData.inventory);
+        break;
+      case 'orders':
+        baseMessage += "Sipariş verileri: " + JSON.stringify(systemData.orders);
+        break;
+      case 'technical':
+        baseMessage += "Teknik dokümanlar: " + JSON.stringify(systemData.technicalDocs);
+        break;
+    }
+    
+    baseMessage += " Yanıtların kısa, net ve profesyonel olsun. Bilmediğin konular hakkında tahmin yürütme, sadece verdiğim bilgilere dayanarak cevap ver.";
+    
+    return baseMessage;
+  };
+  
+  /**
+   * Sistemdeki verileri topla (ERP, doküman yönetim sistemi vb.)
+   * Gerçek uygulamada ilgili servislerden veri çekilecek
+   */
+  const getSystemData = async () => {
+    try {
+      // Gerçek uygulamada: 
+      // const orders = await erpService.getRecentOrders();
+      // const inventory = await erpService.getInventoryStatus();
+      // const production = await productionService.getStatus();
+      // const technicalDocs = await technicalStore.getDocuments();
+      
+      // Simülasyon için örnek veriler:
+      return {
+        orders: [
+          { id: '#0424-1251', customer: 'AYEDAŞ', cellType: 'RM 36 CB', status: 'Gecikiyor', progress: 65 },
+          { id: '#0424-1245', customer: 'TEİAŞ', cellType: 'RM 36 CB', status: 'Devam Ediyor', progress: 45 },
+          { id: '#0424-1239', customer: 'BEDAŞ', cellType: 'RM 36 LB', status: 'Devam Ediyor', progress: 30 },
+          { id: '#0424-1235', customer: 'OSMANİYE ELEKTRİK', cellType: 'RM 36 FL', status: 'Planlandı', progress: 10 }
+        ],
+        inventory: [
+          { code: '137998%', name: 'Siemens 7SR1003-1JA20-2DA0+ZY20 24VDC', stock: 2, required: 8, status: 'Kritik' },
+          { code: '144866%', name: 'KAP-80/190-95 Akım Trafosu', stock: 3, required: 5, status: 'Düşük' },
+          { code: '120170%', name: 'M480TB/G-027-95.300UN5 Kablo Başlığı', stock: 12, required: 15, status: 'Düşük' },
+          { code: '109367%', name: '582mm Bara', stock: 25, required: 18, status: 'Yeterli' }
+        ],
+        production: {
+          daily: { planned: 5, completed: 4, efficiency: 92 },
+          weekly: { planned: 24, completed: 21, efficiency: 87.5 },
+          issues: ["36kV kesici temininde gecikme", "A2 montaj hattında bakım yapılıyor"]
+        },
+        technicalDocs: [
+          { name: 'RM 36 CB Teknik Çizim', date: '15.10.2024', content: 'RM 36 CB hücresine ait teknik çizim detayları...' },
+          { name: 'RM 36 LB Montaj Talimatı', date: '10.10.2024', content: 'RM 36 LB hücresi montaj talimatları...' },
+          { name: 'Akım Trafosu Seçim Kılavuzu', date: '01.10.2024', content: 'RM 36 CB hücresinde genellikle 200-400/5-5A 5P20 7,5/15VA veya 300-600/5-5A 5P20 7,5/15VA özelliklerinde toroidal tip akım trafoları kullanılmaktadır. Canias kodları: 144866% (KAP-80/190-95) veya 142227% (KAT-85/190-95). Bu trafolar Orta Gerilim Hücrelerinde koruma ve ölçme amacıyla kullanılır.' }
+        ]
+      };
+    } catch (error) {
+      console.error('Sistem verisi alınırken hata:', error);
       return {
         orders: [],
-        materials: [],
-        technical: [],
-        stats: {
-          totalOrders: 0,
-          delayedOrders: 0,
-          criticalMaterials: 0,
-          productionEfficiency: 0
-        }
+        inventory: [],
+        production: {},
+        technicalDocs: []
       };
     }
-  }
-
+  };
+  
   /**
-   * Send request to DeepSeek API
-   * @param {string} question - User question
-   * @param {Object} systemData - System data
-   * @returns {Promise<string>} - API response
+   * DeepSeek API yanıtını simüle et
    */
-  async callDeepseekAPI(question, systemData) {
-    try {
-      // Create system content
-      const systemContent = `
-        You are an industrial production assistant. You work in the "MehmetEndüstriyelTakip" software.
-        You are used for a factory that produces medium voltage cells.
-        The factory manufactures medium voltage switchgear equipment.
-        Cell types produced: CB (Circuit Breaker), LB (Load Break), FL (Fused), RMU (Ring Main Unit).
-        
-        You can answer questions based on the following system data:
-        ${JSON.stringify(systemData, null, 2)}
-        
-        Your answers should be short, clear and professional. Do not guess about topics you don't know.
-        For command prompts (order creation, editing, etc.), respond with "You need to use the relevant menu to perform this operation."
-      `;
-
-      // Get conversation history
-      let messages = [
-        {
-          role: 'system',
-          content: systemContent
+  const simulateDeepSeekResponse = async (query, category, systemData) => {
+    // Simüle edilmiş gecikme
+    await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
+    
+    const lowerQuery = query.toLowerCase();
+    
+    // Sorgu kategorisine göre yanıt oluştur
+    switch (category) {
+      case 'production':
+        if (lowerQuery.includes('gecik')) {
+          return {
+            text: `Sistemde geciken 1 sipariş bulunmaktadır: ${systemData.orders[0].id} no'lu ${systemData.orders[0].customer} firmasına ait ${systemData.orders[0].cellType} hücresi. İlerleme durumu: %${systemData.orders[0].progress}. Gecikmenin ana sebebi ${systemData.production.issues[0]}.`,
+            source: 'Üretim Dashboard'
+          };
         }
-      ];
-      
-      // Add recent conversation history (limited)
-      const historyMessages = this.getConversationHistoryForAPI().slice(-6);
-      messages = [...messages, ...historyMessages];
-      
-      // Add current question if not in history
-      if (!historyMessages.some(msg => msg.role === 'user' && msg.content === question)) {
-        messages.push({
-          role: 'user',
-          content: question
-        });
-      }
-
-      const response = await fetch(API_URL, {
+        
+        if (lowerQuery.includes('verimlilik') || lowerQuery.includes('performans')) {
+          return {
+            text: `Günlük üretim verimliliği: %${systemData.production.daily.efficiency} (${systemData.production.daily.completed}/${systemData.production.daily.planned}), haftalık verimlilik: %${systemData.production.weekly.efficiency} (${systemData.production.weekly.completed}/${systemData.production.weekly.planned}). Verimlilik üzerindeki ana etken: ${systemData.production.issues[0]}.`,
+            source: 'Üretim Metrikleri'
+          };
+        }
+        
+        return {
+          text: `Güncel üretim durumu: Bugün ${systemData.production.daily.completed} adet hücre tamamlandı, ${systemData.production.daily.planned - systemData.production.daily.completed} adet hücre hedefine ulaşılamadı. Şu anda toplam ${systemData.orders.length} aktif sipariş üretim sürecinde, ${systemData.orders.filter(o => o.status === 'Gecikiyor').length} tanesi gecikmeli. Ana sorunlar: ${systemData.production.issues.join(', ')}.`,
+          source: 'Üretim Dashboard'
+        };
+        
+      case 'inventory':
+        if (lowerQuery.includes('kritik') || lowerQuery.includes('acil')) {
+          const criticalItems = systemData.inventory.filter(item => item.status === 'Kritik');
+          return {
+            text: `Kritik seviyede olan malzeme: ${criticalItems.map(i => i.name).join(', ')} (Stok: ${criticalItems.map(i => i.stock).join(', ')}, İhtiyaç: ${criticalItems.map(i => i.required).join(', ')})`,
+            source: 'Stok Yönetim Sistemi'
+          };
+        }
+        
+        if (lowerQuery.includes('röle') || lowerQuery.includes('siemens')) {
+          const relays = systemData.inventory.filter(i => i.name.toLowerCase().includes('siemens'));
+          return {
+            text: `Siemens röle (kod: ${relays[0]?.code || 'bulunamadı'}) için mevcut stok ${relays[0]?.stock || 0} adet, ancak ihtiyaç ${relays[0]?.required || 'belirsiz'} adet. ${relays[0]?.stock < relays[0]?.required ? 'Acilen sipariş verilmesi gerekiyor.' : 'Stok durumu yeterli.'}`,
+            source: 'Stok Yönetim Sistemi'
+          };
+        }
+        
+        return {
+          text: `Mevcut stok durumu: ${systemData.inventory.filter(i => i.status === 'Kritik').length} malzeme kritik seviyede, ${systemData.inventory.filter(i => i.status === 'Düşük').length} malzeme düşük stokta, ${systemData.inventory.filter(i => i.status === 'Yeterli').length} malzeme yeterli durumdadır. Kritik malzemeler için "malzeme yönetimi" bölümünden sipariş verebilirsiniz.`,
+          source: 'Stok Yönetim Sistemi'
+        };
+        
+      case 'technical':
+        if (lowerQuery.includes('rm 36 cb')) {
+          return {
+            text: `RM 36 CB hücresi için teknik çizim Rev.2.1 versiyonu mevcut. Bu hücre tipi 36kV gerilimde çalışır, genellikle 200-400/5-5A 5P20 7,5/15VA özelliklerinde akım trafosu kullanılır. Detaylı teknik şartnameyi teknik dokümanlar bölümünden inceleyebilirsiniz.`,
+            source: 'RM 36 CB Teknik Çizim'
+          };
+        }
+        
+        if (lowerQuery.includes('akım trafo')) {
+          const ctDocs = systemData.technicalDocs.filter(doc => doc.name.toLowerCase().includes('akım trafo'));
+          return {
+            text: ctDocs[0]?.content || 'RM 36 CB hücresinde genellikle KAP-80/190-95 (kod: 144866%) veya KAT-85/190-95 (kod: 142227%) tip akım trafoları kullanılmaktadır. Mevcutta 3 adet KAP-80/190-95 stokta bulunuyor, 5 adete ihtiyaç var.',
+            source: ctDocs[0]?.name || 'Teknik Dokümanlar'
+          };
+        }
+        
+        return {
+          text: `Sistemde toplam ${systemData.technicalDocs.length} teknik doküman mevcut: ${systemData.technicalDocs.map(doc => doc.name).join(', ')}. Bu dokümanları "Teknik Dokümanlar" sayfasından inceleyebilirsiniz.`,
+          source: 'Teknik Dokümanlar'
+        };
+        
+      case 'orders':
+        if (lowerQuery.includes('ted')) {
+          const tedasOrders = systemData.orders.filter(o => o.customer.includes('TEDAŞ') || o.customer.includes('TEİAŞ'));
+          return {
+            text: `TEİAŞ/TEDAŞ siparişleri: ${tedasOrders.map(o => `${o.id} (${o.cellType}, ${o.status}, %${o.progress})`).join(', ')}`,
+            source: 'Sipariş Yönetim Sistemi'
+          };
+        }
+        
+        return {
+          text: `Sistemde toplam ${systemData.orders.length} aktif sipariş bulunmaktadır. ${systemData.orders.filter(o => o.status === 'Gecikiyor').length} sipariş gecikmiş durumda, ${systemData.orders.filter(o => o.status === 'Devam Ediyor').length} sipariş devam ediyor, ${systemData.orders.filter(o => o.status === 'Planlandı').length} sipariş ise henüz planlanma aşamasında. Detaylı bilgi için "siparişler" sayfasını inceleyebilirsiniz.`,
+          source: 'Sipariş Yönetim Sistemi'
+        };
+        
+      default:
+        return {
+          text: `Elimdeki bilgilere göre: Sistemde ${systemData.orders.length} aktif sipariş, ${systemData.inventory.length} farklı malzeme kaydı ve ${systemData.technicalDocs.length} teknik doküman bulunuyor. Daha spesifik bilgi için lütfen daha detaylı bir soru sorun. Örneğin "Geciken siparişler nelerdir?" veya "Kritik malzeme durumu nedir?" gibi.`,
+          source: 'MehmetEndüstriyelTakip Sistemi'
+        };
+    }
+  };
+  
+  /**
+   * DeepSeek API'ye çağrı yap (gerçek uygulamada kullanılacak)
+   */
+  const callDeepSeekAPI = async (messages) => {
+    try {
+      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
+          'Authorization': `Bearer ${deepseekConfig.apiKey}`
         },
         body: JSON.stringify({
-          model: this.modelConfig.modelName,
+          model: deepseekConfig.modelName,
           messages: messages,
-          temperature: this.modelConfig.temperature,
-          max_tokens: this.modelConfig.maxTokens
+          temperature: deepseekConfig.temperature,
+          max_tokens: deepseekConfig.maxTokens
         })
       });
-
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        logger.error('DeepSeek API error:', errorData);
-        throw new Error('API response error: ' + response.status);
+        throw new Error(`DeepSeek API hatası: ${response.status}`);
       }
-
+      
       const data = await response.json();
-      return data.choices[0].message.content;
-      
-    } catch (err) {
-      logger.error('DeepSeek API call error:', err);
-      throw err;
+      return {
+        text: data.choices[0].message.content,
+        source: 'DeepSeek AI'
+      };
+    } catch (error) {
+      console.error('DeepSeek API çağrısı başarısız:', error);
+      throw error;
     }
-  }
+  };
+  
+  /**
+   * Temel sorgu işleme (sistem verileri olmadan)
+   * @param {string} query - Kullanıcı sorgusu
+   * @returns {Promise<Object>} - İşlenmiş yanıt
+   */
+  const processQuery = async (query) => {
+    // Üretim ile ilgili sorgular
+    if (query.toLowerCase().includes('üretim') || 
+        query.toLowerCase().includes('imalat') || 
+        query.toLowerCase().includes('montaj')) {
+      return {
+        text: 'Güncel üretim durumuna göre, bu hafta 15 adet hücre montajı tamamlandı ve 8 adedi test aşamasında. Toplam 24 aktif siparişin %65\'i üretim planına uygun şekilde ilerliyor. RM36 CB tipi hücrelerde yaklaşık 2 günlük gecikme mevcut.',
+        source: 'Üretim Dashboard'
+      };
+    }
+    
+    // Stok ile ilgili sorgular
+    if (query.toLowerCase().includes('stok') || 
+        query.toLowerCase().includes('malzeme') || 
+        query.toLowerCase().includes('envanter')) {
+      return {
+        text: 'Stok durumu güncel verilere göre şöyle: 36kV kesicilerde kritik seviye (4 adet kaldı), SF6 gaz dolum seviyesi yeterli. RM36 CB için 8 adet akım trafosu siparişi verildi, 3 gün içinde teslim bekleniyor. Gerilim trafolarında stok yeterli (14 adet).',
+        source: 'Stok Yönetim Sistemi'
+      };
+    }
+    
+    // Teknik sorgular
+    if (query.toLowerCase().includes('teknik') || 
+        query.toLowerCase().includes('şartname') || 
+        query.toLowerCase().includes('doküman') ||
+        query.toLowerCase().includes('akım trafo') ||
+        query.toLowerCase().includes('gerilim trafo')) {
+      return {
+        text: 'RM 36 serisi hücreler için teknik şartnameler merkezi dokümantasyon sisteminde bulunmaktadır. RM 36 CB hücresinde kullanılan akım trafoları tipik olarak 200-600/5A, 15VA değerlerine sahip olup, epoksi reçine izolasyonludur. Dahili ark koruması IEC 62271-200 standardına göre IAC-A-FLR 16kA, 1s sınıfındadır.',
+        source: 'Teknik Dokümanlar'
+      };
+    }
+    
+    // Siparişlerle ilgili sorgular
+    if (query.toLowerCase().includes('sipariş') || 
+        query.toLowerCase().includes('müşteri') || 
+        query.toLowerCase().includes('teslim')) {
+      return {
+        text: 'Bu ayki toplam 7 müşteri siparişinden 5\'i zamanında teslim edildi, 2\'si halen üretimde. Öncelikli olarak TEDAŞ projesi için 12 adet RM36 CB hücresi 15 Mayıs\'ta sevk edilecek. Gecikme riski olan TEİAŞ projesi için ek vardiya planlandı.',
+        source: 'Sipariş Yönetim Sistemi'
+      };
+    }
+    
+    // Genel bilgi yanıtı
+    return {
+      text: 'MehmetEndüstriyelTakip sisteminde üretime, stoklara, siparişlere ve teknik bilgilere dair sorular sorabilirsiniz. Örneğin "Üretim durumu nedir?", "Stok seviyeleri nasıl?" veya "RM36 teknik özellikleri nedir?" gibi sorular sorabilirsiniz.',
+      source: 'MehmetEndüstriyelTakip Dokümantasyonu'
+    };
+  };
 
   /**
-   * Generate mock AI response (until real API connection is established)
-   * @param {string} question - User question
-   * @param {Object} systemData - System data
-   * @returns {string} - Generated mock response
+   * Teknik bir dokümanı sorgula
+   * @param {string} question - Teknik soru
+   * @returns {Promise<Object>} - AI yanıtı ve ilgili dokümanlar
    */
-  generateMockResponse(question, systemData) {
-    const lowerQuestion = question.toLowerCase();
+  const queryTechnical = async (question) => {
+    isProcessing.value = true;
     
-    // Check for context in conversation history
-    const context = this.getContextFromHistory();
-    
-    // Orders related questions
-    if (lowerQuestion.includes('sipariş') || lowerQuestion.includes('order')) {
-      if (lowerQuestion.includes('geciken') || lowerQuestion.includes('gecikme')) {
-        const delayedOrders = systemData.orders.filter(order => order.status === 'Gecikiyor');
-        
-        if (delayedOrders.length > 0) {
-          return `Sistemde geciken ${delayedOrders.length} sipariş bulunmaktadır:\n\n${
-            delayedOrders.map(order => `- ${order.id} no'lu ${order.customer} firmasına ait ${order.cellType} hücresi (İlerleme: %${order.progress})`).join('\n')
-          }`;
-        }
-        return 'Şu anda geciken sipariş bulunmamaktadır.';
-      }
+    try {
+      // Gerçek uygulamada teknik dokümanları alıp işle
+      // const documents = await technicalStore.getDocuments();
+      // const context = prepareDocumentContext(documents, question);
       
-      if (lowerQuestion.includes('devam eden') || lowerQuestion.includes('üretim')) {
-        const inProgressOrders = systemData.orders.filter(order => order.status === 'Devam Ediyor');
-        
-        if (inProgressOrders.length > 0) {
-          return `Şu anda üretimi devam eden ${inProgressOrders.length} sipariş bulunmaktadır:\n\n${
-            inProgressOrders.map(order => `- ${order.id} - ${order.customer} - ${order.cellType} (İlerleme: %${order.progress})`).join('\n')
-          }`;
-        }
-        return 'Şu anda üretimi devam eden sipariş bulunmamaktadır.';
-      }
-
-      if (lowerQuestion.match(/\b#?\d{4}-\d{4}\b/) || lowerQuestion.match(/\b#?\d{4}-\d{3}\b/)) {
-        // Order number query
-        const orderIdMatch = lowerQuestion.match(/\b#?(\d{4}-\d{4})\b/) || lowerQuestion.match(/\b#?(\d{4}-\d{3})\b/);
-        if (orderIdMatch) {
-          const orderId = orderIdMatch[0].startsWith('#') ? orderIdMatch[0] : `#${orderIdMatch[0]}`;
-          const order = systemData.orders.find(o => o.id === orderId);
-          
-          if (order) {
-            return `${order.id} no'lu sipariş bilgileri:\n\nMüşteri: ${order.customer}\nHücre Tipi: ${order.cellType}\nDurum: ${order.status}\nİlerleme: %${order.progress}\n\nÜretim aşamaları:\n- Tasarım: ${order.progress > 10 ? '✓ Tamamlandı' : '○ Bekliyor'}\n- Malzeme: ${order.progress > 30 ? '✓ Tamamlandı' : '○ Bekliyor'}\n- Mekanik Üretim: ${order.progress > 50 ? '✓ Tamamlandı' : '○ Bekliyor'}\n- Montaj: ${order.progress > 70 ? '✓ Tamamlandı' : '○ Bekliyor'}\n- Test: ${order.progress > 90 ? '✓ Tamamlandı' : '○ Bekliyor'}`;
-          }
-          return `${orderId} numaralı sipariş bulunamadı.`;
-        }
-      }
+      // DeepSeek API'ye gönder
+      // return await callDeepSeekAPIWithContext(question, context);
       
-      // General order query
-      return `Sistemde toplam ${systemData.orders.length} aktif sipariş bulunmaktadır. ${
-        systemData.orders.filter(o => o.status === 'Gecikiyor').length
-      } sipariş gecikmiş durumda, ${
-        systemData.orders.filter(o => o.status === 'Devam Ediyor').length
-      } sipariş devam ediyor, ${
-        systemData.orders.filter(o => o.status === 'Planlandı').length
-      } sipariş ise henüz planlanma aşamasında. Detaylı bilgi için "siparişler" sayfasını inceleyebilirsiniz.`;
-    }
-    
-    // Material queries
-    if (lowerQuestion.includes('malzeme') || lowerQuestion.includes('stok') || lowerQuestion.includes('material')) {
-      if (lowerQuestion.includes('kritik') || lowerQuestion.includes('acil')) {
-        const criticalMaterials = systemData.materials.filter(mat => mat.status === 'Kritik');
-        
-        if (criticalMaterials.length > 0) {
-          return `Kritik seviyede olan malzemeler:\n\n${
-            criticalMaterials.map(mat => `- ${mat.name} (Stok: ${mat.stock}, İhtiyaç: ${mat.required})`).join('\n')
-          }`;
-        }
-        return 'Şu anda kritik seviyede malzeme bulunmamaktadır.';
-      }
+      // Simülasyon için:
+      await new Promise(r => setTimeout(r, 1500)); // Gecikme simülasyonu
       
-      if (lowerQuestion.includes('röle') || lowerQuestion.includes('role') || lowerQuestion.includes('siemens')) {
-        const roleResults = systemData.materials.filter(mat => 
-          mat.name.toLowerCase().includes('siemens') || 
-          mat.name.toLowerCase().includes('röle') || 
-          mat.name.toLowerCase().includes('role'));
-          
-        if (roleResults.length > 0) {
-          return `Röle ile ilgili malzeme sonuçları:\n\n${
-            roleResults.map(mat => `- ${mat.name} (Stok: ${mat.stock}, Durum: ${mat.status})`).join('\n')
-          }`;
-        }
-        return 'Röle ile ilgili sonuç bulunamadı.';
-      }
+      const lowerQuestion = question.toLowerCase();
+      let response, relatedDocs = [];
       
-      // General materials query
-      return `Sistemde toplam ${systemData.materials.length} farklı malzeme kaydı bulunmaktadır. ${
-        systemData.materials.filter(m => m.status === 'Kritik').length
-      } malzeme kritik seviyede, ${
-        systemData.materials.filter(m => m.status === 'Sipariş Edildi').length
-      } malzeme sipariş edilmiş durumda. Detaylı bilgi için "Stok Yönetimi" sayfasını inceleyebilirsiniz.`;
-    }
-    
-    // Technical document queries
-    if (lowerQuestion.includes('teknik') || lowerQuestion.includes('doküman') || lowerQuestion.includes('belge') || lowerQuestion.includes('çizim')) {
-      if (lowerQuestion.includes('cb') || lowerQuestion.includes('kesici')) {
-        return 'CB tipi hücreler için teknik belgeler:\n\n- CB Teknik Şartname\n- CB Montaj Talimatları\n- CB Test Prosedürü\n- CB CAD Çizimleri\n\nBelgelere erişmek için "Teknik Belgeler > CB Dokümanları" menüsünü kullanabilirsiniz.';
-      }
-      
-      if (lowerQuestion.includes('lb') || lowerQuestion.includes('yük')) {
-        return 'LB tipi hücreler için teknik belgeler:\n\n- LB Teknik Şartname\n- LB Montaj Talimatları\n- LB Test Prosedürü\n- LB CAD Çizimleri\n\nBelgelere erişmek için "Teknik Belgeler > LB Dokümanları" menüsünü kullanabilirsiniz.';
-      }
-      
-      // General technical documents response
-      return 'Teknik belgeler modülünde aşağıdaki kategorilerde dokümanlar bulabilirsiniz:\n\n- CB Dokümanları\n- LB Dokümanları\n- FL Dokümanları\n- RMU Dokümanları\n- Test Raporları\n- Sertifikalar\n- CAD Çizimleri\n\nİlgili dokümanlara erişmek için sol menüdeki "Teknik Belgeler" bölümünü kullanabilirsiniz.';
-    }
-    
-    // Dashboard summary
-    if (lowerQuestion.includes('özet') || lowerQuestion.includes('dashboard') || lowerQuestion.includes('gösterge')) {
-      return `Günlük üretim özeti (${new Date().toLocaleDateString('tr-TR')}):\n\n- Toplam Aktif Sipariş: ${systemData.stats.totalOrders || 0}\n- Geciken Siparişler: ${systemData.stats.delayedOrders || 0}\n- Kritik Malzemeler: ${systemData.stats.criticalMaterials || 0}\n- Üretim Verimliliği: %${systemData.stats.productionEfficiency || 0}\n\nDetaylı bilgi için Dashboard sayfasını inceleyebilirsiniz.`;
-    }
-    
-    // Help menu
-    if (lowerQuestion.includes('yardım') || lowerQuestion.includes('ne yapabilir') || lowerQuestion.includes('nasıl kullan')) {
-      return 'Size nasıl yardımcı olabilirim:\n\n• Siparişler hakkında bilgi verebilirim (örn. "Geciken siparişler hangileri?")\n• Stok ve malzeme durumunu kontrol edebilirim (örn. "Kritik malzeme var mı?")\n• Teknik belgeler hakkında bilgi verebilirim (örn. "CB teknik belgeleri neler?")\n• Günlük üretim özeti sunabilirim (örn. "Günlük üretim özeti")\n\nSpesifik bir sipariş veya malzeme hakkında bilgi almak için ID veya isim belirterek sorabilirsiniz.';
-    }
-    
-    // Generic fallback response
-    return context + 'Üzgünüm, bu konuda spesifik bir bilgim yok. Siparişler, malzemeler veya teknik belgeler hakkında sorular sorabilirsiniz. Size nasıl yardımcı olabileceğim konusunda daha fazla bilgi için "yardım" yazabilirsiniz.';
-  }
-
-  /**
-   * Get context from conversation history
-   * @returns {string} - Context string
-   */
-  getContextFromHistory() {
-    // If there's previous conversation, add some context
-    if (this.conversationHistory.length > 2) {
-      const lastAssistantMessage = [...this.conversationHistory]
-        .reverse()
-        .find(msg => msg.role === 'assistant');
-      
-      if (lastAssistantMessage) {
-        // Extract topic from last message
-        const topics = {
-          sipariş: 'siparişler',
-          malzeme: 'malzeme ve stok',
-          teknik: 'teknik belgeler',
-          özet: 'üretim özeti'
+      // Simüle edilmiş yanıtlar
+      if (lowerQuestion.includes('akım trafosu')) {
+        response = {
+          answer: {
+            text: 'RM 36 CB hücresinde genellikle 200-400/5-5A 5P20 7,5/15VA veya 300-600/5-5A 5P20 7,5/15VA özelliklerinde toroidal tip akım trafoları kullanılmaktadır. Canias kodları: 144866% (KAP-80/190-95) veya 142227% (KAT-85/190-95).',
+            reference: 'Akım Trafosu Seçim Kılavuzu'
+          },
+          relatedDocs: [
+            { id: 'doc5', name: 'Akım Trafosu Seçim Kılavuzu', revision: '1.3' },
+            { id: 'doc1', name: 'RM 36 CB Teknik Çizim', revision: '2.1' }
+          ]
         };
-        
-        for (const [keyword, topic] of Object.entries(topics)) {
-          if (lastAssistantMessage.content.toLowerCase().includes(keyword)) {
-            return `${topic} hakkında konuşmaya devam ediyoruz. `;
-          }
-        }
+      } else if (lowerQuestion.includes('bara')) {
+        response = {
+          answer: {
+            text: 'OG Hücrelerde kullanılan baralar genellikle elektrolitik bakırdır. RM 36 serisi için 582mm ve 432mm uzunluklarında 40x10mm kesitinde düz bakır baralar kullanılır. Stok kodları: 109367% (582mm) ve 109363% (432mm).',
+            reference: 'RM 36 Serisi Bara Montaj Kılavuzu'
+          },
+          relatedDocs: [
+            { id: 'doc6', name: 'RM 36 Serisi Bara Montaj Kılavuzu', revision: '1.8' },
+            { id: 'doc1', name: 'RM 36 CB Teknik Çizim', revision: '2.1' }
+          ]
+        };
+      } else {
+        response = {
+          answer: {
+            text: 'RM 36 serisi hücreler, 36kV orta gerilim için tasarlanmıştır. Ana bileşenleri: kesici/yük ayırıcı, akım trafosu, gerilim trafosu, koruma rölesi ve bara sisteminden oluşur. Temel hücre tipleri: CB (Kesicili), LB (Yük Ayırıcılı), FL (Sigortalı), RMU (Ring Main Unit).',
+            reference: 'RM 36 Serisi Genel Teknik Şartname'
+          },
+          relatedDocs: [
+            { id: 'doc7', name: 'RM 36 Serisi Genel Teknik Şartname', revision: '3.0' },
+            { id: 'doc1', name: 'RM 36 CB Teknik Çizim', revision: '2.1' }
+          ]
+        };
       }
+      
+      return response;
+    } catch (error) {
+      console.error('Teknik sorgulama hatası:', error);
+      throw error;
+    } finally {
+      isProcessing.value = false;
     }
-    return '';
-  }
+  };
+  
+  /**
+   * Konuşma geçmişini temizler
+   */
+  const clearHistory = () => {
+    history.value = [];
+  };
+  
+  /**
+   * Öngörüler ve analizler oluştur
+   * myrule2.mdc'deki yapay zeka öngörülerini karşılar
+   */
+  const generateInsights = async () => {
+    try {
+      // Gerçek uygulamada farklı sistem kaynaklarından veri çekilecek
+      const systemData = await getSystemData();
+      
+      // DeepSeek API ile öngörüler üretilecek
+      // const rawInsights = await callDeepSeekAPIForInsights(systemData);
+      // return processInsights(rawInsights);
+      
+      // Simüle edilmiş öngörüler
+      return [
+        {
+          title: "36kV Kesici Stok Uyarısı",
+          description: "36kV kesiciler kritik seviyeye düştü (4 adet kaldı). Bu hafta 2 yeni sipariş bekleniyor ve tahminlere göre yetersiz kalabilir.",
+          importance: "high",
+          type: "warning",
+          source: "Stok Analizi",
+          timestamp: new Date(new Date().getTime() - 35 * 60000), // 35 dakika önce
+          details: {
+            type: "comparison",
+            leftLabel: "Mevcut Stok",
+            leftValue: "4 adet",
+            rightLabel: "Minimum Gereken",
+            rightValue: "6 adet"
+          },
+          recommendations: [
+            "Acil sipariş planlaması gerekiyor",
+            "Alternatif tedarikçilerle iletişime geçin"
+          ]
+        },
+        {
+          title: "Üretim Verimliliği Artışı Tespiti",
+          description: "Son 30 günde üretim verimliliği %8 artış gösterdi. Ana katkı faktörü: Montaj süreçlerindeki iyileştirmeler.",
+          importance: "medium",
+          type: "improvement",
+          source: "Üretim Metrikleri Analizi",
+          timestamp: new Date(new Date().getTime() - 3 * 3600000) // 3 saat önce
+        },
+        // ... diğer öngörüler
+      ];
+    } catch (error) {
+      console.error('Öngörü oluşturma hatası:', error);
+      return [];
+    }
+  };
+  
+  // Yükleme sırasında API anahtarını kontrol et
+  loadApiKey();
+  
+  return {
+    isProcessing,
+    lastResponse,
+    history,
+    sendMessage,
+    clearHistory,
+    queryTechnical,
+    generateInsights,
+    setApiKey
+  };
 }
-
-// Create and export singleton instance
-export const aiService = new AIService();

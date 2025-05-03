@@ -1,23 +1,6 @@
 <template>
   <div class="dashboard-view">
-    <!-- Üst Bilgi ve İstatistik Özeti -->
-    <div class="dashboard-header">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h2 class="page-title">Genel Bakış</h2>
-          <p class="text-muted">Hoş geldiniz, bugün {{ formattedDate }}</p>
-        </div>
-        <div class="dashboard-actions">
-          <div class="date-filter d-flex align-items-center me-2">
-            <button class="btn btn-sm btn-outline-primary" @click="refreshDashboard">
-              <i class="bi bi-arrow-clockwise"></i> Yenile
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- İstatistik Kartları -->
+    <!-- İstatistik Kartları - ornekindex.html'deki 4 kart yapısına uygun -->
     <div class="row mb-4">
       <div class="col-md-3 col-sm-6 mb-3">
         <div class="stat-card card border-0 h-100">
@@ -112,7 +95,7 @@
       </div>
     </div>
 
-    <!-- Grafikler ve Tablolar -->
+    <!-- Grafikler - ornekindex.html'deki düzene göre (8-4 sütun) -->
     <div class="row">
       <!-- Üretim Durumu Grafiği -->
       <div class="col-lg-8 col-md-12 mb-4">
@@ -147,7 +130,17 @@
           </div>
         </div>
       </div>
+    </div>
+    
+    <!-- Yapay Zeka Öngörüleri -->
+    <div class="row mt-4">
+      <div class="col-12 mb-4">
+        <AIInsightsDashboard />
+      </div>
+    </div>
       
+    <!-- Alt Tablolar ve Listeler - ornekindex.html'deki düzene göre (6-6 sütun) -->
+    <div class="row mt-4">
       <!-- Kritik Malzeme Durumu Tablosu -->
       <div class="col-lg-6 col-md-12 mb-4">
         <div class="card border-0 h-100">
@@ -157,7 +150,7 @@
           </div>
           <div class="card-body p-0">
             <div class="table-responsive">
-              <table class="table table-hover mb-0">
+              <table class="table table-hover mb-0 custom-table">
                 <thead>
                   <tr>
                     <th>Malzeme Kodu</th>
@@ -172,7 +165,7 @@
                     <td colspan="5" class="text-center py-3">Kritik malzeme bulunmamaktadır.</td>
                   </tr>
                   <tr v-for="(material, index) in dashboardData.criticalMaterials" :key="index" 
-                      :class="material.status === 'critical' ? 'table-danger' : 'table-warning'">
+                      :class="material.status === 'critical' ? 'material-critical' : 'material-required'">
                     <td>{{ material.code }}</td>
                     <td class="text-nowrap text-truncate" style="max-width: 200px;">{{ material.name }}</td>
                     <td>{{ material.stock }}</td>
@@ -226,6 +219,7 @@ import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue';
 import Chart from 'chart.js/auto';
 import { useAuthStore } from '@/store/auth';
 import { useDashboardData } from '@/modules/dashboard/useDashboardData';
+import AIInsightsDashboard from '@/components/ai/AIInsightsDashboard.vue';
 
 // Chart.js gereken kontroller
 Chart.defaults.color = getTextColor();
@@ -245,7 +239,7 @@ let cellTypeChartInstance = null;
 // Chart period state
 const chartPeriod = ref('monthly');
 
-// Dummy data for demonstration
+// Dashboard data - daha zengin hale getirildi
 const dashboardData = ref({
   activeOrders: 24,
   ongoingProduction: 18,
@@ -259,7 +253,8 @@ const dashboardData = ref({
     { code: '137998%', name: 'Siemens 7SR1003-1JA20-2DA0+ZY20 24VDC', stock: 2, required: 8, status: 'critical' },
     { code: '144866%', name: 'KAP-80/190-95 Akım Trafosu', stock: 3, required: 5, status: 'warning' },
     { code: '157322%', name: 'Siemens 8DL5 Sekonder Kablo Seti', stock: 0, required: 2, status: 'critical' },
-    { code: '119845%', name: 'LED Lamba Kiti (Kırmızı-Yeşil-Sarı) 24V', stock: 5, required: 10, status: 'warning' }
+    { code: '119845%', name: 'LED Lamba Kiti (Kırmızı-Yeşil-Sarı) 24V', stock: 5, required: 10, status: 'warning' },
+    { code: '162480%', name: 'Rezistif Gerilim Bölücü 36kV', stock: 1, required: 3, status: 'critical' }
   ],
   alerts: [
     { 
@@ -282,6 +277,31 @@ const dashboardData = ref({
       message: 'KEE Enerji için 12 hücrelik yeni bir sipariş oluşturuldu.',
       source: 'Satış Birimi',
       type: 'info'
+    },
+    {
+      title: 'Teknik Değişiklik',
+      time: '1 gün önce',
+      message: 'RM 36 CB hücre tipleri için şartnameye uygun yeni braket tasarımı onaylandı.',
+      source: 'Teknik Ofis',
+      type: 'info'
+    }
+  ],
+  recentActivities: [
+    {
+      id: 1,
+      type: 'order',
+      title: 'Yeni sipariş eklendi',
+      description: 'AYEDAŞ için 8 adet RM 36 CB hücre siparişi',
+      timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 dakika önce
+      user: 'Ahmet Yılmaz'
+    },
+    {
+      id: 2,
+      type: 'production',
+      title: 'Üretim tamamlandı',
+      description: 'Sipariş #0424-1239 için hücreler test aşamasında',
+      timestamp: new Date(Date.now() - 1000 * 60 * 120), // 2 saat önce
+      user: 'Mehmet Demir'
     }
   ]
 });
@@ -314,7 +334,7 @@ const changeChartPeriod = (period) => {
   updateProductionChart();
 };
 
-// Üretim grafiğini oluşturur
+// Üretim grafiğini oluşturur - Geliştirildi: ornekindex.html'e göre
 const createProductionChart = () => {
   if (!productionChart.value) {
     console.warn('Production chart canvas not found');
@@ -323,16 +343,34 @@ const createProductionChart = () => {
 
   const ctx = productionChart.value.getContext('2d');
   
+  // Tarih etiketleri - myrule2.mdc özelinde geliştirildi
+  const getLabels = () => {
+    if (chartPeriod.value === 'weekly') {
+      return ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+    } else {
+      // Son 6 ay etiketleri
+      const currentDate = new Date();
+      const monthLabels = [];
+      
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date();
+        date.setMonth(currentDate.getMonth() - i);
+        monthLabels.push(date.toLocaleDateString('tr-TR', { month: 'short' }));
+      }
+      
+      return monthLabels;
+    }
+  };
+  
+  // Veri setleri - myrule2.mdc'de bahsedilen daha kapsamlı analiz için
   const data = {
-    labels: chartPeriod.value === 'weekly' 
-      ? ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] 
-      : ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'].slice(0, new Date().getMonth() + 1),
+    labels: getLabels(),
     datasets: [
       {
         label: 'Planlanan Üretim',
         data: chartPeriod.value === 'weekly' 
           ? [12, 15, 18, 14, 16, 10, 8]
-          : [35, 42, 45, 50, 48, 55, 60, 58, 62, 65, 68, 70].slice(0, new Date().getMonth() + 1),
+          : [35, 42, 45, 50, 48, 55, 60],
         borderColor: '#0d6efd',
         backgroundColor: 'rgba(13, 110, 253, 0.1)',
         tension: 0.4,
@@ -342,11 +380,22 @@ const createProductionChart = () => {
         label: 'Gerçekleşen Üretim',
         data: chartPeriod.value === 'weekly' 
           ? [10, 13, 16, 14, 15, 9, 7]
-          : [32, 38, 43, 45, 42, 50, 55, 52, 58, 60, 63, 65].slice(0, new Date().getMonth() + 1),
+          : [32, 38, 43, 45, 42, 50, 55],
         borderColor: '#20c997',
         backgroundColor: 'rgba(32, 201, 151, 0.1)',
         tension: 0.4,
         fill: true
+      },
+      {
+        label: 'Hedef Üretim',
+        data: chartPeriod.value === 'weekly' 
+          ? [14, 14, 14, 14, 14, 8, 8]
+          : [40, 40, 40, 45, 45, 50, 50],
+        borderColor: '#ffc107',
+        borderDash: [5, 5],
+        backgroundColor: 'rgba(0, 0, 0, 0)',
+        tension: 0,
+        fill: false
       }
     ]
   };
@@ -407,7 +456,7 @@ const createProductionChart = () => {
   }
 };
 
-// Hücre tipi grafiğini oluşturur
+// Hücre tipi grafiğini oluşturur - Ornekindex.html'e göre geliştirildi
 const createCellTypeChart = () => {
   if (!cellTypeChart.value) {
     console.warn('Cell type chart canvas not found');
@@ -517,15 +566,31 @@ const updateCellTypeChart = () => {
   createCellTypeChart();
 };
 
-// Dashboard verilerini çeker
+// Dashboard verilerini çeker - myrule2.mdc'de istenen API entegrasyonuna hazırlık
 const fetchDashboardData = async () => {
   try {
-    // Gerçek bir API çağrısı yapılabilir
+    // Gerçek bir API çağrısı örneği - Canias ERP sisteminden veri çekme simülasyonu
     // const response = await dashboardService.getDashboardData();
     // dashboardData.value = response;
     
-    // Şimdilik örnek veri kullanıyoruz
-    console.log('Dashboard verileri çekildi (simülasyon)');
+    // API çağrısı simülasyonu
+    console.log('ERP sisteminden dashboard verileri çekiliyor...');
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Demo veri - Gerçek uygulamada API'den alınacak
+    dashboardData.value = {
+      ...dashboardData.value,
+      activeOrders: 24,
+      ongoingProduction: 18,
+      delayedOrders: 3,
+      completedOrders: 42,
+      ordersTrend: Math.random() > 0.5 ? 5.2 : -2.3, // Demo için rastgele değişim
+      productionTrend: Math.random() > 0.5 ? 4.7 : -2.1,
+      delayedTrend: Math.random() > 0.5 ? 1.5 : -1.8,
+      completedTrend: Math.random() > 0.5 ? 8.7 : -3.4
+    };
+    
+    console.log('Dashboard verileri başarıyla güncellendi');
   } catch (error) {
     console.error('Dashboard verileri çekilirken hata:', error);
     throw error;
@@ -550,6 +615,16 @@ onMounted(() => {
   });
   
   window.addEventListener('resize', handleResize);
+  
+  // Her 5 dakikada bir dashboard verilerini güncelle - myrule2.mdc'de belirtilen gerçek zamanlı takip için
+  const refreshInterval = setInterval(() => {
+    refreshDashboard();
+  }, 300000); // 5 dakika
+  
+  // Interval'i temizle
+  onBeforeUnmount(() => {
+    clearInterval(refreshInterval);
+  });
 });
 
 // Bileşen kaldırıldığında
@@ -571,14 +646,28 @@ onBeforeUnmount(() => {
   padding: 1rem;
 }
 
-.stat-card {
-  transition: all 0.2s ease;
-  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+/* Kart stilleri - ornekindex.html'den uyarlandı */
+.card {
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  transition: transform 0.3s;
 }
 
-.stat-card:hover {
+.card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+  background-color: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  font-weight: 600;
+}
+
+/* İstatistik kartları */
+.stat-card {
+  transition: all 0.2s ease;
 }
 
 .stat-icon {
@@ -593,6 +682,7 @@ onBeforeUnmount(() => {
   font-size: 1.5rem;
 }
 
+/* Grafik stilleri */
 .chart-container {
   position: relative;
   width: 100%;
@@ -604,7 +694,26 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-/* Responsive düzenlemeler */
+/* Malzeme durumu stilleri - ornekindex.html'den */
+.material-critical {
+  background-color: var(--material-critical-bg, #ffebee);
+}
+
+.material-required {
+  background-color: var(--material-required-bg, #fff3e0);
+}
+
+.material-available {
+  background-color: var(--material-available-bg, #e8f5e9);
+}
+
+/* Custom tablo stilleri - ornekindex.html'den */
+.custom-table th {
+  background-color: var(--light-color, #ecf0f1);
+  font-weight: 600;
+}
+
+/* Duyarlı tasarım ayarları */
 @media (max-width: 768px) {
   .dashboard-header {
     flex-direction: column;
