@@ -12,7 +12,16 @@
         <div class="content-wrapper">
           <router-view v-slot="{ Component }">
             <transition name="fade" mode="out-in">
-              <component :is="Component" />
+              <Suspense>
+                <component :is="Component" />
+                <template #fallback>
+                  <div class="loading-component">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Yükleniyor...</span>
+                    </div>
+                  </div>
+                </template>
+              </Suspense>
             </transition>
           </router-view>
         </div>
@@ -28,6 +37,7 @@
 <script setup>
 import { ref, provide, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/store/auth';
 import { useTechnicalStore } from '@/store/technical';
 import AppHeader from '@/components/app/AppHeader.vue';
@@ -42,15 +52,13 @@ const router = useRouter();
 const authStore = useAuthStore();
 const technicalStore = useTechnicalStore();
 
-// AI Chat Modal durumu
-const isAIChatModalOpen = computed(() => technicalStore.isAIChatModalOpen);
-
-// Kimlik doğrulama durumu
-const isAuthenticated = computed(() => authStore.isAuthenticated);
+// Reactive store properties - storeToRefs kullanarak
+const { user, isAuthenticated } = storeToRefs(authStore);
+const { isAIChatModalOpen } = storeToRefs(technicalStore);
 
 // Username
 const username = computed(() => {
-  return authStore.user?.displayName || authStore.user?.name || 'Kullanıcı';
+  return user.value?.displayName || user.value?.name || 'Kullanıcı';
 });
 
 // Dark mode state
@@ -90,6 +98,14 @@ provide('toggleDarkMode', toggleDarkMode);
 // Sayfa yüklendiğinde dark mode durumunu kontrol et
 onMounted(() => {
   document.body.classList.toggle('dark-mode', isDarkMode.value);
+  
+  // Auth durumunu kontrol et, değilse ve development modunda ise otomatik login
+  if (!isAuthenticated.value && import.meta.env.DEV) {
+    console.log('Development ortamında otomatik giriş yapılıyor...');
+    authStore.demoLogin().catch(error => {
+      console.error('Otomatik giriş başarısız:', error);
+    });
+  }
 });
 
 // Route değişiklikleri izleme - mobil görünümde sidebar otomatik kapansın
@@ -144,6 +160,15 @@ $sidebar-collapsed-width: 70px;
       width: calc(100% - #{$sidebar-collapsed-width}); /* Update width when collapsed */
     }
   }
+}
+
+/* Bileşen yükleme ekranı */
+.loading-component {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  width: 100%;
 }
 
 /* Sayfa geçişi animasyonu */

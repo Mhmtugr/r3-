@@ -31,7 +31,8 @@
           </router-link>
         </li>
         <li class="nav-item">
-          <router-link class="nav-link" to="/inventory" active-class="active">
+          <!-- Corrected link to point to the specific materials view -->
+          <router-link class="nav-link" to="/inventory/materials" active-class="active">
             <i class="bi bi-box-seam"></i>
             <span v-if="!isCollapsed">Malzeme Yönetimi</span>
           </router-link>
