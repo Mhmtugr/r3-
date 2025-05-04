@@ -215,13 +215,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue';
+import { ref, onMounted, computed, watch, onBeforeUnmount, nextTick } from 'vue';
 import Chart from 'chart.js/auto';
 import { useAuthStore } from '@/store/auth';
 import { useDashboardData } from '@/modules/dashboard/useDashboardData';
 import AIInsightsDashboard from '@/components/ai/AIInsightsDashboard.vue';
 
 // Chart.js gereken kontroller
+const getTextColor = () => document.body.classList.contains('dark-mode') ? '#e2e2e2' : '#6c757d';
+const getGridLineColor = () => document.body.classList.contains('dark-mode') ? 'rgba(255, 255, 255, 0.1)' : 'rgba(200, 200, 200, 0.15)';
+const getLabelColor = () => document.body.classList.contains('dark-mode') ? '#adb5bd' : '#6c757d';
+
 Chart.defaults.color = getTextColor();
 Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
@@ -331,7 +335,9 @@ const refreshDashboard = async () => {
 // Grafik periyodunu değiştirir
 const changeChartPeriod = (period) => {
   chartPeriod.value = period;
-  updateProductionChart();
+  nextTick(() => {
+    updateProductionChart();
+  });
 };
 
 // Üretim grafiğini oluşturur - Geliştirildi: ornekindex.html'e göre
@@ -446,6 +452,10 @@ const createProductionChart = () => {
   };
 
   try {
+    if (productionChartInstance) {
+      productionChartInstance.destroy();
+    }
+    
     productionChartInstance = new Chart(ctx, {
       type: 'line',
       data: data,
@@ -512,6 +522,10 @@ const createCellTypeChart = () => {
   };
 
   try {
+    if (cellTypeChartInstance) {
+      cellTypeChartInstance.destroy();
+    }
+    
     cellTypeChartInstance = new Chart(ctx, {
       type: 'doughnut',
       data: data,
@@ -522,20 +536,6 @@ const createCellTypeChart = () => {
   }
 };
 
-function getTextColor() {
-  return document.body.classList.contains('dark-mode') ? '#e2e2e2' : '#6c757d';
-}
-
-function getGridLineColor() {
-  return document.body.classList.contains('dark-mode') 
-    ? 'rgba(255, 255, 255, 0.1)' 
-    : 'rgba(200, 200, 200, 0.15)';
-}
-
-function getLabelColor() {
-  return document.body.classList.contains('dark-mode') ? '#adb5bd' : '#6c757d';
-}
-
 // Tüm grafikleri günceller
 const updateCharts = () => {
   updateProductionChart();
@@ -544,26 +544,16 @@ const updateCharts = () => {
 
 // Üretim grafiğini günceller
 const updateProductionChart = () => {
-  if (productionChartInstance) {
-    try {
-      productionChartInstance.destroy();
-    } catch (error) {
-      console.error('Error destroying production chart:', error);
-    }
-  }
-  createProductionChart();
+  nextTick(() => {
+    createProductionChart();
+  });
 };
 
 // Hücre tipi grafiğini günceller
 const updateCellTypeChart = () => {
-  if (cellTypeChartInstance) {
-    try {
-      cellTypeChartInstance.destroy();
-    } catch (error) {
-      console.error('Error destroying cell type chart:', error);
-    }
-  }
-  createCellTypeChart();
+  nextTick(() => {
+    createCellTypeChart();
+  });
 };
 
 // Dashboard verilerini çeker - myrule2.mdc'de istenen API entegrasyonuna hazırlık
@@ -597,6 +587,14 @@ const fetchDashboardData = async () => {
   }
 };
 
+// Dark mode değişikliği izle
+const handleDarkModeChange = () => {
+  if (productionChartInstance || cellTypeChartInstance) {
+    Chart.defaults.color = getTextColor();
+    updateCharts();
+  }
+};
+
 // Boyut değişikliğinde grafikleri yeniden boyutlandır
 const handleResize = () => {
   if (productionChartInstance) {
@@ -607,37 +605,61 @@ const handleResize = () => {
   }
 };
 
-// Bileşen yüklendiğinde
-onMounted(() => {
-  fetchDashboardData().then(() => {
-    createProductionChart();
-    createCellTypeChart();
-  });
-  
+// Eklenen event listener'lar için temizleme
+const setupEventListeners = () => {
   window.addEventListener('resize', handleResize);
-  
-  // Her 5 dakikada bir dashboard verilerini güncelle - myrule2.mdc'de belirtilen gerçek zamanlı takip için
-  const refreshInterval = setInterval(() => {
-    refreshDashboard();
-  }, 300000); // 5 dakika
-  
-  // Interval'i temizle
-  onBeforeUnmount(() => {
-    clearInterval(refreshInterval);
-  });
+  document.addEventListener('dark-mode-toggle', handleDarkModeChange);
+};
+
+const cleanupEventListeners = () => {
+  window.removeEventListener('resize', handleResize);
+  document.removeEventListener('dark-mode-toggle', handleDarkModeChange);
+};
+
+// Bileşen yüklendiğinde
+onMounted(async () => {
+  // Event listener'ları ekle
+  setupEventListeners();
+
+  try {
+    // Önce data al
+    await fetchDashboardData();
+    
+    // Sonra grafikleri çiz
+    nextTick(() => {
+      createProductionChart();
+      createCellTypeChart();
+      
+      // Otomatik güncelleme için interval
+      const refreshInterval = setInterval(() => {
+        refreshDashboard();
+      }, 300000); // 5 dakika
+      
+      // Cleanup için interval'i kaydet
+      onBeforeUnmount(() => {
+        clearInterval(refreshInterval);
+        cleanupEventListeners();
+
+        // Grafik instance'larını temizle
+        if (productionChartInstance) {
+          productionChartInstance.destroy();
+          productionChartInstance = null;
+        }
+        
+        if (cellTypeChartInstance) {
+          cellTypeChartInstance.destroy();
+          cellTypeChartInstance = null;
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Dashboard yüklenirken hata:', error);
+  }
 });
 
-// Bileşen kaldırıldığında
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleResize);
-  
-  if (productionChartInstance) {
-    productionChartInstance.destroy();
-  }
-  
-  if (cellTypeChartInstance) {
-    cellTypeChartInstance.destroy();
-  }
+// Dark mode değişimini izle
+watch(() => document.body.classList.contains('dark-mode'), (isDark) => {
+  handleDarkModeChange();
 });
 </script>
 

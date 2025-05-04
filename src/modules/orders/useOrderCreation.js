@@ -6,6 +6,8 @@
 import { ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from '@/composables/useToast';
+// Order servisini import et
+import { addOrder as saveOrderToService } from '@/services/order-service'; 
 
 export function useOrderCreation() {
   // Dependencies
@@ -20,7 +22,6 @@ export function useOrderCreation() {
   // Form data
   const orderData = reactive({
     // Genel bilgiler
-    orderNo: '',
     orderDate: new Date().toISOString().split('T')[0], // Bugünün tarihi
     customerInfo: {
       name: '',
@@ -49,9 +50,7 @@ export function useOrderCreation() {
     projects: [],
     // Durum bilgileri
     status: 'planned',
-    progress: 0,
-    createdAt: null,
-    updatedAt: null
+    progress: 0
   });
 
   // Computed properties
@@ -157,19 +156,15 @@ export function useOrderCreation() {
   }
   
   /**
-   * Formdaki verileri toplar
+   * Formdaki verileri toplar (orderNo, createdAt, updatedAt hariç)
    */
   function collectFormData() {
-    // Verileri hazırla - tüm form alanları zaten reactive `orderData` içinde tutuluyor
-    return {
-      ...orderData,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+    const { orderNo, createdAt, updatedAt, ...dataToSend } = orderData;
+    return dataToSend;
   }
   
   /**
-   * Yeni sipariş kaydeder
+   * Yeni sipariş kaydeder (order-service kullanarak)
    * @returns {Promise<string|null>} - Başarılı kaydedilirse sipariş ID, başarısız ise null
    */
   async function saveOrder() {
@@ -177,42 +172,24 @@ export function useOrderCreation() {
       isLoading.value = true;
       
       const formData = collectFormData();
-      
-      // Sipariş numarası oluştur (gerçek projede sunucu tarafında yapılabilir)
-      if (!formData.orderNo) {
-        const now = new Date();
-        const year = now.getFullYear().toString().substring(2);
-        const month = (now.getMonth() + 1).toString().padStart(2, '0');
-        const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-        
-        formData.orderNo = `#${year}${month}-${randomNum}`;
-      }
-      
-      // Firebase kullanılabilirse
-      if (window.firebase && window.firebase.firestore) {
-        const docRef = await window.firebase.firestore().collection('orders').add({
-          ...formData,
-          createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-          updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-        });
-        
-        showToast('Sipariş başarıyla oluşturuldu', 'success');
-        router.push({ name: 'OrderDetail', params: { id: docRef.id } });
-        
-        return docRef.id;
+
+      // Order servisini kullanarak siparişi kaydet
+      const result = await saveOrderToService(formData);
+
+      if (result && result.id) {
+        showToast(`Sipariş başarıyla oluşturuldu: ${result.orderNo}`, 'success');
+        // Yeni oluşturulan siparişin detay sayfasına yönlendir
+        router.push({ name: 'OrderDetail', params: { id: result.id } });
+        return result.id; // Başarılı durumda ID döndür
       } else {
-        // Demo mod
-        console.log('Demo mod: Sipariş verileri', formData);
-        
-        showToast('Demo mod: Sipariş oluşturuldu (simülasyon)', 'success');
-        router.push({ name: 'Orders' });
-        
-        return 'demo-order-' + Date.now();
+        // Servis bir hata döndürdüyse veya ID yoksa
+        throw new Error('Sipariş servis tarafından kaydedilemedi.');
       }
+
     } catch (error) {
       console.error('Sipariş kaydedilirken hata oluştu:', error);
-      showToast('Sipariş kaydedilemedi: ' + error.message, 'error');
-      return null;
+      showToast('Sipariş kaydedilemedi: ' + (error.message || 'Bilinmeyen bir hata oluştu.'), 'error');
+      return null; // Hata durumunda null döndür
     } finally {
       isLoading.value = false;
     }
@@ -230,7 +207,6 @@ export function useOrderCreation() {
    */
   function resetOrderData() {
     Object.assign(orderData, {
-      orderNo: '',
       orderDate: new Date().toISOString().split('T')[0],
       customerInfo: {
         name: '',
@@ -262,7 +238,9 @@ export function useOrderCreation() {
   }
   
   // Sayfa yüklendiğinde en az bir hücre olsun
-  addCell();
+  if (orderData.cells.length === 0) { // Sadece hiç hücre yoksa ekle
+      addCell();
+  }
   
   // Return public API
   return {

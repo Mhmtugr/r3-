@@ -1,596 +1,1110 @@
-import { ref } from 'vue';
-import { useTechnicalStore } from '@/store/technical';
-import { useErpService } from '@/services/erp-service';
+import { ref, reactive, computed } from 'vue';
+import { useStorage } from '@vueuse/core';
+import { useRouter } from 'vue-router';
+import axios from 'axios';
+import { getAuth } from 'firebase/auth';
 
-/**
- * Yapay Zeka Servisi
- * DeepSeek API entegrasyonu ve kullanıcı sorguları için yapay zeka servisi
- */
+// AI Servis Composable
 export function useAiService() {
+  // Router
+  const router = useRouter();
+  
+  // State
+  const history = useStorage('ai-chat-history', []);
   const isProcessing = ref(false);
-  const lastResponse = ref(null);
-  const history = ref([]);
-  const technicalStore = useTechnicalStore();
-  const erpService = useErpService();
-
-  // DeepSeek API yapılandırması
-  const deepseekConfig = {
-    apiKey: '', // Production'da process.env'den alınabilir
-    modelName: 'deepseek-chat',
-    temperature: 0.7,
-    maxTokens: 1000
+  const modelLoading = ref(false);
+  const systemData = ref(null);
+  const currentModelKey = useStorage('ai-current-model', 'general');
+  const predictionCache = reactive({});
+  const learningModels = ref({});
+  
+  // Desteklenen AI modelleri
+  const supportedModels = {
+    general: {
+      name: 'Genel Amaçlı AI',
+      capabilities: ['Temel Sorular', 'Sipariş Analizi', 'Malzeme Bilgisi'],
+      description: 'Genel sorular ve basit siparişler için uygun, hızlı bir model.',
+      contextWindow: 8000,
+      systemPrompt: 'Üretim asistanısın. Kullanıcıların sorularına kısa ve net yanıtlar ver.'
+    },
+    technical: {
+      name: 'Teknik AI',
+      capabilities: ['Teknik Analiz', 'CAD Desteği', '3D Model Analizi'],
+      description: 'Teknik konularda ve CAD modellerinin analizi konusunda uzmanlaşmış model.',
+      contextWindow: 12000,
+      systemPrompt: 'Teknik bir asistansın. Kullanıcılara CAD modelleri, teknik çizimler ve teknik özellikler konusunda yardımcı ol.'
+    },
+    analytics: {
+      name: 'Analitik AI',
+      capabilities: ['Detaylı Analiz', 'Veri İşleme', 'Tahmin Modelleri'],
+      description: 'Veri analizi ve yorumlama konusunda uzmanlaşmış, tahmin modelleri oluşturabilen gelişmiş model.',
+      contextWindow: 16000,
+      systemPrompt: 'Analitik bir asistansın. Kullanıcılara veri analizi, görselleştirme ve tahminler konusunda yardım et.'
+    },
+    ml: {
+      name: 'ML AI',
+      capabilities: ['Makine Öğrenmesi', 'Veri Madenciliği', 'Anomali Tespiti'],
+      description: 'Makine öğrenmesi modellerini kullanarak tahminler yapan, geçmiş verilere göre analizler sunan model.',
+      contextWindow: 20000,
+      systemPrompt: 'Makine öğrenmesi uzmanı bir asistansın. Kullanıcılara veri modellemesi, tahmin ve anomali tespiti konusunda yardım et.'
+    },
   };
-
-  /**
-   * DeepSeek API anahtarını ayarla
-   * @param {string} apiKey - API anahtarı
-   */
-  const setApiKey = (apiKey) => {
-    deepseekConfig.apiKey = apiKey;
-    localStorage.setItem('deepseekApiKey', apiKey);
+  
+  // Mevcut modeli al
+  const getCurrentModel = () => {
+    return {
+      key: currentModelKey.value,
+      ...supportedModels[currentModelKey.value]
+    };
   };
-
-  /**
-   * Saklanan API anahtarını yükle
-   */
-  const loadApiKey = () => {
-    try {
-      const savedApiKey = localStorage.getItem('deepseekApiKey') || window.DEEPSEEK_API_KEY || '';
-      if (savedApiKey) {
-        deepseekConfig.apiKey = savedApiKey;
-        return true;
-      }
-    } catch (error) {
-      console.error('API anahtarı yüklenemedi:', error);
+  
+  // Model değiştir
+  const switchModel = (modelKey) => {
+    if (supportedModels[modelKey]) {
+      currentModelKey.value = modelKey;
+      
+      // Sistem mesajı ekle
+      history.value.push({
+        role: 'system',
+        content: `Model değiştirildi: ${supportedModels[modelKey].name}`,
+        timestamp: new Date(),
+        isSystemMessage: true
+      });
+      
+      return true;
     }
     return false;
   };
-
-  /**
-   * Kullanıcı mesajını işler ve yapay zeka yanıtı döndürür
-   * @param {string} message - Kullanıcı mesajı
-   * @returns {Promise<Object>} - Yapay zeka yanıtı
-   */
-  const sendMessage = async (message) => {
+  
+  // Geçmişi temizle
+  const clearHistory = () => {
+    history.value = [];
+  };
+  
+  // Mesaj gönder
+  const sendMessage = async (message, options = {}) => {
+    if (isProcessing.value) return null;
+    
     isProcessing.value = true;
     
     try {
-      // API anahtarını yükle
-      if (!deepseekConfig.apiKey) {
-        const loaded = loadApiKey();
-        if (!loaded) {
-          return {
-            text: 'API anahtarı bulunamadı. Lütfen sistem yöneticinize başvurun.',
-            source: 'Sistem'
-          };
-        }
-      }
-      
-      // Mesaj geçmişine ekle
+      // Kullanıcı mesajını ekle
       history.value.push({
         role: 'user',
         content: message,
         timestamp: new Date()
       });
       
-      // Üretim ortamında gerçek DeepSeek API'ye bağlanılacak
-      // Şimdilik processQuery ile lokal simülasyon yapıyoruz
-      let response;
+      // Model yükleniyor göster
+      modelLoading.value = true;
       
-      try {
-        // Önce sisteme entegre olan verilerden enrich edilmiş bir yanıt bulmayı deneyelim
-        response = await processQueryWithSystemContext(message);
-      } catch (error) {
-        console.error('Zenginleştirilmiş sorgu işleme hatası:', error);
-        // Yerel işleme ile devam et
-        response = await processQuery(message);
+      // AI yanıtı simüle et (gerçek bir API çağrısı olacak)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // CAD model isteği mi kontrol et
+      const isCadRequest = message.toLowerCase().includes('3d model') || 
+                          message.toLowerCase().includes('cad') || 
+                          message.toLowerCase().includes('çizim');
+      
+      // Tahmin talebi mi kontrol et
+      const isPredictionRequest = message.toLowerCase().includes('tahmin') || 
+                                message.toLowerCase().includes('prediction') || 
+                                message.toLowerCase().includes('öngörü') ||
+                                message.toLowerCase().includes('analiz');
+      
+      let response = {
+        text: '',
+        modelPreview: null,
+        prediction: null,
+        relatedDocs: []
+      };
+      
+      if (isCadRequest) {
+        response = await handleCadModelRequest(message);
+      } else if (isPredictionRequest) {
+        response = await handlePredictionRequest(message);
+      } else {
+        response = await generateResponse(message);
       }
       
-      // Yanıt geçmişine ekle
+      // AI yanıtını ekle
       history.value.push({
         role: 'assistant',
         content: response.text,
-        source: response.source,
-        timestamp: new Date()
+        timestamp: new Date(),
+        source: response.source || supportedModels[currentModelKey.value].name,
+        modelPreview: response.modelPreview,
+        prediction: response.prediction,
+        relatedDocs: response.relatedDocs
       });
       
-      lastResponse.value = response;
       return response;
+      
     } catch (error) {
-      console.error('AI servisi hatası:', error);
-      throw new Error('Mesaj işlenirken bir hata oluştu');
+      console.error('AI yanıtı alınamadı:', error);
+      
+      // Hata mesajı ekle
+      history.value.push({
+        role: 'assistant',
+        content: 'Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.',
+        timestamp: new Date(),
+        error: true
+      });
+      
+      return null;
     } finally {
       isProcessing.value = false;
+      modelLoading.value = false;
     }
-  };
-
-  /**
-   * Sistem verileriyle zenginleştirilmiş sorgu işleme
-   * ERP, Teknik dokümanlar ve diğer sistemlerden veri çekip analiz yaparak cevap döner
-   * @param {string} query - Kullanıcı sorgusu
-   */
-  const processQueryWithSystemContext = async (query) => {
-    // Farklı sistemlerden veri toplama
-    const systemData = await getSystemData();
-    
-    // Sorgunun hangi kategoriye ait olduğunu belirle
-    const category = determineQueryCategory(query);
-    
-    // DeepSeek API için sistem mesajını ve kullanıcı sorgusunu hazırla
-    const messages = [
-      {
-        role: "system",
-        content: generateSystemMessage(category, systemData)
-      },
-      {
-        role: "user",
-        content: query
-      }
-    ];
-    
-    // Gerçek DeepSeek API için hazırlık
-    // Bu fonksiyon, production'da gerçek API'ye bağlanacak
-    // return await callDeepSeekAPI(messages);
-    
-    // Simülasyon için:
-    return await simulateDeepSeekResponse(query, category, systemData);
   };
   
-  /**
-   * Kullanıcı sorgusunun kategorisini belirle
-   */
-  const determineQueryCategory = (query) => {
-    const lowerQuery = query.toLowerCase();
+  // CAD model talebini işle
+  const handleCadModelRequest = async (message) => {
+    // Sistem verilerini yükle
+    const data = await getSystemData();
     
-    if (lowerQuery.includes('üretim') || lowerQuery.includes('imalat') || lowerQuery.includes('montaj')) {
-      return 'production';
-    }
-    if (lowerQuery.includes('stok') || lowerQuery.includes('malzeme') || lowerQuery.includes('envanter')) {
-      return 'inventory';
-    }
-    if (lowerQuery.includes('sipariş') || lowerQuery.includes('müşteri') || lowerQuery.includes('teslim')) {
-      return 'orders';
-    }
-    if (lowerQuery.includes('teknik') || lowerQuery.includes('şartname') || lowerQuery.includes('trafo') || lowerQuery.includes('doküman')) {
-      return 'technical';
-    }
+    // İlgili CAD modeli ara
+    const models = data.cadModels || [];
+    const keywords = message.toLowerCase().split(' ');
     
-    return 'general';
-  };
-  
-  /**
-   * Kategori ve sistem verilerine göre yapay zeka için sistem mesajını oluştur
-   */
-  const generateSystemMessage = (category, systemData) => {
-    let baseMessage = "Sen MehmetEndüstriyelTakip sisteminin yapay zeka asistanısın. Orta gerilim hücre üretimi yapan bir şirkete ait sistemlere erişimin var. ";
+    let bestMatch = null;
+    let matchScore = 0;
     
-    switch (category) {
-      case 'production':
-        baseMessage += "Üretim verileri: " + JSON.stringify(systemData.production);
-        break;
-      case 'inventory':
-        baseMessage += "Envanter verileri: " + JSON.stringify(systemData.inventory);
-        break;
-      case 'orders':
-        baseMessage += "Sipariş verileri: " + JSON.stringify(systemData.orders);
-        break;
-      case 'technical':
-        baseMessage += "Teknik dokümanlar: " + JSON.stringify(systemData.technicalDocs);
-        break;
-    }
-    
-    baseMessage += " Yanıtların kısa, net ve profesyonel olsun. Bilmediğin konular hakkında tahmin yürütme, sadece verdiğim bilgilere dayanarak cevap ver.";
-    
-    return baseMessage;
-  };
-  
-  /**
-   * Sistemdeki verileri topla (ERP, doküman yönetim sistemi vb.)
-   * Gerçek uygulamada ilgili servislerden veri çekilecek
-   */
-  const getSystemData = async () => {
-    try {
-      // Gerçek uygulamada: 
-      // const orders = await erpService.getRecentOrders();
-      // const inventory = await erpService.getInventoryStatus();
-      // const production = await productionService.getStatus();
-      // const technicalDocs = await technicalStore.getDocuments();
+    // Basit bir eşleme algoritması
+    for (const model of models) {
+      let score = 0;
+      const modelName = model.name.toLowerCase();
       
-      // Simülasyon için örnek veriler:
-      return {
-        orders: [
-          { id: '#0424-1251', customer: 'AYEDAŞ', cellType: 'RM 36 CB', status: 'Gecikiyor', progress: 65 },
-          { id: '#0424-1245', customer: 'TEİAŞ', cellType: 'RM 36 CB', status: 'Devam Ediyor', progress: 45 },
-          { id: '#0424-1239', customer: 'BEDAŞ', cellType: 'RM 36 LB', status: 'Devam Ediyor', progress: 30 },
-          { id: '#0424-1235', customer: 'OSMANİYE ELEKTRİK', cellType: 'RM 36 FL', status: 'Planlandı', progress: 10 }
-        ],
-        inventory: [
-          { code: '137998%', name: 'Siemens 7SR1003-1JA20-2DA0+ZY20 24VDC', stock: 2, required: 8, status: 'Kritik' },
-          { code: '144866%', name: 'KAP-80/190-95 Akım Trafosu', stock: 3, required: 5, status: 'Düşük' },
-          { code: '120170%', name: 'M480TB/G-027-95.300UN5 Kablo Başlığı', stock: 12, required: 15, status: 'Düşük' },
-          { code: '109367%', name: '582mm Bara', stock: 25, required: 18, status: 'Yeterli' }
-        ],
-        production: {
-          daily: { planned: 5, completed: 4, efficiency: 92 },
-          weekly: { planned: 24, completed: 21, efficiency: 87.5 },
-          issues: ["36kV kesici temininde gecikme", "A2 montaj hattında bakım yapılıyor"]
-        },
-        technicalDocs: [
-          { name: 'RM 36 CB Teknik Çizim', date: '15.10.2024', content: 'RM 36 CB hücresine ait teknik çizim detayları...' },
-          { name: 'RM 36 LB Montaj Talimatı', date: '10.10.2024', content: 'RM 36 LB hücresi montaj talimatları...' },
-          { name: 'Akım Trafosu Seçim Kılavuzu', date: '01.10.2024', content: 'RM 36 CB hücresinde genellikle 200-400/5-5A 5P20 7,5/15VA veya 300-600/5-5A 5P20 7,5/15VA özelliklerinde toroidal tip akım trafoları kullanılmaktadır. Canias kodları: 144866% (KAP-80/190-95) veya 142227% (KAT-85/190-95). Bu trafolar Orta Gerilim Hücrelerinde koruma ve ölçme amacıyla kullanılır.' }
-        ]
-      };
-    } catch (error) {
-      console.error('Sistem verisi alınırken hata:', error);
-      return {
-        orders: [],
-        inventory: [],
-        production: {},
-        technicalDocs: []
-      };
-    }
-  };
-  
-  /**
-   * DeepSeek API yanıtını simüle et
-   */
-  const simulateDeepSeekResponse = async (query, category, systemData) => {
-    // Simüle edilmiş gecikme
-    await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
-    
-    const lowerQuery = query.toLowerCase();
-    
-    // Sorgu kategorisine göre yanıt oluştur
-    switch (category) {
-      case 'production':
-        if (lowerQuery.includes('gecik')) {
-          return {
-            text: `Sistemde geciken 1 sipariş bulunmaktadır: ${systemData.orders[0].id} no'lu ${systemData.orders[0].customer} firmasına ait ${systemData.orders[0].cellType} hücresi. İlerleme durumu: %${systemData.orders[0].progress}. Gecikmenin ana sebebi ${systemData.production.issues[0]}.`,
-            source: 'Üretim Dashboard'
-          };
+      for (const keyword of keywords) {
+        if (keyword.length > 2 && modelName.includes(keyword)) {
+          score += 1;
         }
-        
-        if (lowerQuery.includes('verimlilik') || lowerQuery.includes('performans')) {
-          return {
-            text: `Günlük üretim verimliliği: %${systemData.production.daily.efficiency} (${systemData.production.daily.completed}/${systemData.production.daily.planned}), haftalık verimlilik: %${systemData.production.weekly.efficiency} (${systemData.production.weekly.completed}/${systemData.production.weekly.planned}). Verimlilik üzerindeki ana etken: ${systemData.production.issues[0]}.`,
-            source: 'Üretim Metrikleri'
-          };
-        }
-        
-        return {
-          text: `Güncel üretim durumu: Bugün ${systemData.production.daily.completed} adet hücre tamamlandı, ${systemData.production.daily.planned - systemData.production.daily.completed} adet hücre hedefine ulaşılamadı. Şu anda toplam ${systemData.orders.length} aktif sipariş üretim sürecinde, ${systemData.orders.filter(o => o.status === 'Gecikiyor').length} tanesi gecikmeli. Ana sorunlar: ${systemData.production.issues.join(', ')}.`,
-          source: 'Üretim Dashboard'
-        };
-        
-      case 'inventory':
-        if (lowerQuery.includes('kritik') || lowerQuery.includes('acil')) {
-          const criticalItems = systemData.inventory.filter(item => item.status === 'Kritik');
-          return {
-            text: `Kritik seviyede olan malzeme: ${criticalItems.map(i => i.name).join(', ')} (Stok: ${criticalItems.map(i => i.stock).join(', ')}, İhtiyaç: ${criticalItems.map(i => i.required).join(', ')})`,
-            source: 'Stok Yönetim Sistemi'
-          };
-        }
-        
-        if (lowerQuery.includes('röle') || lowerQuery.includes('siemens')) {
-          const relays = systemData.inventory.filter(i => i.name.toLowerCase().includes('siemens'));
-          return {
-            text: `Siemens röle (kod: ${relays[0]?.code || 'bulunamadı'}) için mevcut stok ${relays[0]?.stock || 0} adet, ancak ihtiyaç ${relays[0]?.required || 'belirsiz'} adet. ${relays[0]?.stock < relays[0]?.required ? 'Acilen sipariş verilmesi gerekiyor.' : 'Stok durumu yeterli.'}`,
-            source: 'Stok Yönetim Sistemi'
-          };
-        }
-        
-        return {
-          text: `Mevcut stok durumu: ${systemData.inventory.filter(i => i.status === 'Kritik').length} malzeme kritik seviyede, ${systemData.inventory.filter(i => i.status === 'Düşük').length} malzeme düşük stokta, ${systemData.inventory.filter(i => i.status === 'Yeterli').length} malzeme yeterli durumdadır. Kritik malzemeler için "malzeme yönetimi" bölümünden sipariş verebilirsiniz.`,
-          source: 'Stok Yönetim Sistemi'
-        };
-        
-      case 'technical':
-        if (lowerQuery.includes('rm 36 cb')) {
-          return {
-            text: `RM 36 CB hücresi için teknik çizim Rev.2.1 versiyonu mevcut. Bu hücre tipi 36kV gerilimde çalışır, genellikle 200-400/5-5A 5P20 7,5/15VA özelliklerinde akım trafosu kullanılır. Detaylı teknik şartnameyi teknik dokümanlar bölümünden inceleyebilirsiniz.`,
-            source: 'RM 36 CB Teknik Çizim'
-          };
-        }
-        
-        if (lowerQuery.includes('akım trafo')) {
-          const ctDocs = systemData.technicalDocs.filter(doc => doc.name.toLowerCase().includes('akım trafo'));
-          return {
-            text: ctDocs[0]?.content || 'RM 36 CB hücresinde genellikle KAP-80/190-95 (kod: 144866%) veya KAT-85/190-95 (kod: 142227%) tip akım trafoları kullanılmaktadır. Mevcutta 3 adet KAP-80/190-95 stokta bulunuyor, 5 adete ihtiyaç var.',
-            source: ctDocs[0]?.name || 'Teknik Dokümanlar'
-          };
-        }
-        
-        return {
-          text: `Sistemde toplam ${systemData.technicalDocs.length} teknik doküman mevcut: ${systemData.technicalDocs.map(doc => doc.name).join(', ')}. Bu dokümanları "Teknik Dokümanlar" sayfasından inceleyebilirsiniz.`,
-          source: 'Teknik Dokümanlar'
-        };
-        
-      case 'orders':
-        if (lowerQuery.includes('ted')) {
-          const tedasOrders = systemData.orders.filter(o => o.customer.includes('TEDAŞ') || o.customer.includes('TEİAŞ'));
-          return {
-            text: `TEİAŞ/TEDAŞ siparişleri: ${tedasOrders.map(o => `${o.id} (${o.cellType}, ${o.status}, %${o.progress})`).join(', ')}`,
-            source: 'Sipariş Yönetim Sistemi'
-          };
-        }
-        
-        return {
-          text: `Sistemde toplam ${systemData.orders.length} aktif sipariş bulunmaktadır. ${systemData.orders.filter(o => o.status === 'Gecikiyor').length} sipariş gecikmiş durumda, ${systemData.orders.filter(o => o.status === 'Devam Ediyor').length} sipariş devam ediyor, ${systemData.orders.filter(o => o.status === 'Planlandı').length} sipariş ise henüz planlanma aşamasında. Detaylı bilgi için "siparişler" sayfasını inceleyebilirsiniz.`,
-          source: 'Sipariş Yönetim Sistemi'
-        };
-        
-      default:
-        return {
-          text: `Elimdeki bilgilere göre: Sistemde ${systemData.orders.length} aktif sipariş, ${systemData.inventory.length} farklı malzeme kaydı ve ${systemData.technicalDocs.length} teknik doküman bulunuyor. Daha spesifik bilgi için lütfen daha detaylı bir soru sorun. Örneğin "Geciken siparişler nelerdir?" veya "Kritik malzeme durumu nedir?" gibi.`,
-          source: 'MehmetEndüstriyelTakip Sistemi'
-        };
-    }
-  };
-  
-  /**
-   * DeepSeek API'ye çağrı yap (gerçek uygulamada kullanılacak)
-   */
-  const callDeepSeekAPI = async (messages) => {
-    try {
-      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${deepseekConfig.apiKey}`
-        },
-        body: JSON.stringify({
-          model: deepseekConfig.modelName,
-          messages: messages,
-          temperature: deepseekConfig.temperature,
-          max_tokens: deepseekConfig.maxTokens
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`DeepSeek API hatası: ${response.status}`);
       }
       
-      const data = await response.json();
-      return {
-        text: data.choices[0].message.content,
-        source: 'DeepSeek AI'
-      };
-    } catch (error) {
-      console.error('DeepSeek API çağrısı başarısız:', error);
-      throw error;
+      if (score > matchScore) {
+        matchScore = score;
+        bestMatch = model;
+      }
     }
-  };
-  
-  /**
-   * Temel sorgu işleme (sistem verileri olmadan)
-   * @param {string} query - Kullanıcı sorgusu
-   * @returns {Promise<Object>} - İşlenmiş yanıt
-   */
-  const processQuery = async (query) => {
-    // Üretim ile ilgili sorgular
-    if (query.toLowerCase().includes('üretim') || 
-        query.toLowerCase().includes('imalat') || 
-        query.toLowerCase().includes('montaj')) {
+    
+    // Eğer bir model bulunduysa
+    if (bestMatch && matchScore >= 1) {
       return {
-        text: 'Güncel üretim durumuna göre, bu hafta 15 adet hücre montajı tamamlandı ve 8 adedi test aşamasında. Toplam 24 aktif siparişin %65\'i üretim planına uygun şekilde ilerliyor. RM36 CB tipi hücrelerde yaklaşık 2 günlük gecikme mevcut.',
-        source: 'Üretim Dashboard'
+        text: `"${bestMatch.name}" modelini buldum. Bu model hakkında daha fazla bilgi edinmek veya 3D görünümde incelemek ister misiniz?`,
+        modelPreview: {
+          id: bestMatch.id,
+          name: bestMatch.name,
+          image: bestMatch.previewImage
+        },
+        source: 'CAD Model Asistanı',
+        relatedDocs: bestMatch.relatedDocs || []
       };
     }
     
-    // Stok ile ilgili sorgular
-    if (query.toLowerCase().includes('stok') || 
-        query.toLowerCase().includes('malzeme') || 
-        query.toLowerCase().includes('envanter')) {
-      return {
-        text: 'Stok durumu güncel verilere göre şöyle: 36kV kesicilerde kritik seviye (4 adet kaldı), SF6 gaz dolum seviyesi yeterli. RM36 CB için 8 adet akım trafosu siparişi verildi, 3 gün içinde teslim bekleniyor. Gerilim trafolarında stok yeterli (14 adet).',
-        source: 'Stok Yönetim Sistemi'
-      };
-    }
-    
-    // Teknik sorgular
-    if (query.toLowerCase().includes('teknik') || 
-        query.toLowerCase().includes('şartname') || 
-        query.toLowerCase().includes('doküman') ||
-        query.toLowerCase().includes('akım trafo') ||
-        query.toLowerCase().includes('gerilim trafo')) {
-      return {
-        text: 'RM 36 serisi hücreler için teknik şartnameler merkezi dokümantasyon sisteminde bulunmaktadır. RM 36 CB hücresinde kullanılan akım trafoları tipik olarak 200-600/5A, 15VA değerlerine sahip olup, epoksi reçine izolasyonludur. Dahili ark koruması IEC 62271-200 standardına göre IAC-A-FLR 16kA, 1s sınıfındadır.',
-        source: 'Teknik Dokümanlar'
-      };
-    }
-    
-    // Siparişlerle ilgili sorgular
-    if (query.toLowerCase().includes('sipariş') || 
-        query.toLowerCase().includes('müşteri') || 
-        query.toLowerCase().includes('teslim')) {
-      return {
-        text: 'Bu ayki toplam 7 müşteri siparişinden 5\'i zamanında teslim edildi, 2\'si halen üretimde. Öncelikli olarak TEDAŞ projesi için 12 adet RM36 CB hücresi 15 Mayıs\'ta sevk edilecek. Gecikme riski olan TEİAŞ projesi için ek vardiya planlandı.',
-        source: 'Sipariş Yönetim Sistemi'
-      };
-    }
-    
-    // Genel bilgi yanıtı
+    // Model bulunamadı
     return {
-      text: 'MehmetEndüstriyelTakip sisteminde üretime, stoklara, siparişlere ve teknik bilgilere dair sorular sorabilirsiniz. Örneğin "Üretim durumu nedir?", "Stok seviyeleri nasıl?" veya "RM36 teknik özellikleri nedir?" gibi sorular sorabilirsiniz.',
-      source: 'MehmetEndüstriyelTakip Dokümantasyonu'
+      text: 'Üzgünüm, belirtilen kriterlere uygun bir CAD modeli bulamadım. Lütfen daha spesifik bir model adı veya anahtar kelimeler kullanarak tekrar deneyin.',
+      source: 'CAD Model Asistanı'
     };
   };
-
-  /**
-   * Teknik bir dokümanı sorgula
-   * @param {string} question - Teknik soru
-   * @returns {Promise<Object>} - AI yanıtı ve ilgili dokümanlar
-   */
-  const queryTechnical = async (question) => {
+  
+  // Tahmin talebini işle
+  const handlePredictionRequest = async (message) => {
+    modelLoading.value = true;
+    
+    try {
+      // Mesaj içeriğini analiz et
+      const isProductionPrediction = message.toLowerCase().includes('üretim') || message.toLowerCase().includes('production');
+      const isOrderPrediction = message.toLowerCase().includes('sipariş') || message.toLowerCase().includes('order');
+      const isMaterialPrediction = message.toLowerCase().includes('malzeme') || message.toLowerCase().includes('material');
+      
+      // Tahmin türünü belirle
+      let predictionType = 'general';
+      
+      if (isProductionPrediction) {
+        predictionType = 'production';
+      } else if (isOrderPrediction) {
+        predictionType = 'order';
+      } else if (isMaterialPrediction) {
+        predictionType = 'material';
+      }
+      
+      // Eğer ön bellek varsa onu kullan
+      if (predictionCache[predictionType]) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Gerçek bir hesaplama varmış gibi kısa bekletme
+        
+        return {
+          text: `${getPredictionText(predictionType)} İşte tahmin sonuçları:`,
+          prediction: predictionCache[predictionType],
+          source: 'ML Tahmin Motoru',
+          relatedDocs: getPredictionDocs(predictionType)
+        };
+      }
+      
+      // Yeni bir tahmin oluştur
+      const prediction = await generatePrediction(predictionType);
+      
+      // Ön belleğe kaydet
+      predictionCache[predictionType] = prediction;
+      
+      return {
+        text: `${getPredictionText(predictionType)} İşte tahmin sonuçları:`,
+        prediction: prediction,
+        source: 'ML Tahmin Motoru',
+        relatedDocs: getPredictionDocs(predictionType)
+      };
+      
+    } catch (error) {
+      console.error('Tahmin oluşturulamadı:', error);
+      
+      return {
+        text: 'Üzgünüm, tahmin modeli çalıştırılırken bir hata oluştu. Lütfen tekrar deneyin veya sistem yöneticinizle iletişime geçin.',
+        source: 'ML Tahmin Motoru'
+      };
+    } finally {
+      modelLoading.value = false;
+    }
+  };
+  
+  // Tahmin metni al
+  const getPredictionText = (type) => {
+    switch (type) {
+      case 'production':
+        return 'Üretim verilerine dayalı tahmin analizi tamamlandı. Son 12 ayın üretim verileri incelendi ve gelecek 3 ay için tahmin modeli oluşturuldu.';
+      case 'order':
+        return 'Sipariş verilerine dayalı tahmin analizi tamamlandı. Son 6 ayın sipariş trendleri incelendi ve önümüzdeki dönem için sipariş tahmini oluşturuldu.';
+      case 'material':
+        return 'Malzeme stok ve kullanım verilerine dayalı tahmin analizi tamamlandı. Malzeme tüketim trendleri incelendi ve stok ihtiyaçları öngörüldü.';
+      default:
+        return 'Veri analizi tamamlandı ve tahmin modeli oluşturuldu.';
+    }
+  };
+  
+  // Tahminle ilgili dokümanları al
+  const getPredictionDocs = (type) => {
+    const docs = [];
+    
+    switch (type) {
+      case 'production':
+        docs.push(
+          { id: 'prod-report', name: 'Üretim Trend Raporu.pdf' },
+          { id: 'prod-analysis', name: 'Üretim Hat Analizi.xlsx' }
+        );
+        break;
+      case 'order':
+        docs.push(
+          { id: 'order-report', name: 'Sipariş Tahmini Raporu.pdf' },
+          { id: 'order-trends', name: 'Müşteri Trend Analizi.xlsx' }
+        );
+        break;
+      case 'material':
+        docs.push(
+          { id: 'material-report', name: 'Malzeme Kullanım Raporu.pdf' },
+          { id: 'material-forecast', name: 'Malzeme İhtiyaç Planı.xlsx' }
+        );
+        break;
+    }
+    
+    return docs;
+  };
+  
+  // Tahmin oluştur
+  const generatePrediction = async (type) => {
+    // Gerçek uygulamada bir API çağrısı olacak
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    let predictions = [];
+    let metrics = {};
+    let explanation = '';
+    
+    switch (type) {
+      case 'production':
+        predictions = [
+          { value: '15.2%', label: 'Üretim artışı (3 ay)', probability: 0.86 },
+          { value: '457 birim', label: 'Aylık ortalama üretim', probability: 0.93 },
+          { value: '92.3%', label: 'Ortalama verimlilik', probability: 0.78 },
+          { value: '4.2 gün', label: 'Ortalama tamamlanma süresi', probability: 0.81 },
+          { value: '23%', label: 'Tam zamanında üretim artışı', probability: 0.74 }
+        ];
+        metrics = {
+          accuracy: 0.91,
+          rmse: 0.14,
+          mae: 0.09,
+          r2: 0.87
+        };
+        explanation = 'Bu tahmin modeli, son 12 aydaki üretim verilerini kullanarak bir zaman serisi analizi gerçekleştirdi. Model, mevsimsel dalgalanmaları ve önceki trendleri dikkate alarak gelecek 3 ay için tahminler üretti. Özellikle RM36 CB hücrelerindeki üretim artışının, yeni otomasyon sisteminin devreye alınmasından sonra hızlandığı görülüyor.';
+        break;
+        
+      case 'order':
+        predictions = [
+          { value: '28.7%', label: 'Sipariş artışı (Q2)', probability: 0.82 },
+          { value: '635 birim', label: 'Beklenen Q2 sipariş miktarı', probability: 0.89 },
+          { value: '15.3 gün', label: 'Ortalama teslimat süresi', probability: 0.91 },
+          { value: '4.2%', label: 'İptal oranı tahmini', probability: 0.77 },
+          { value: '18.4%', label: 'RM 36 CB model payı', probability: 0.84 }
+        ];
+        metrics = {
+          accuracy: 0.88,
+          precision: 0.85,
+          recall: 0.81,
+          f1: 0.83
+        };
+        explanation = 'Sipariş tahmin modeli, müşteri segmentasyonu ve tarihsel sipariş örüntülerini analiz ederek oluşturuldu. Özellikle son 6 aydaki sipariş trendleri ve sektörel büyüme verileri dikkate alındı. Q2 döneminde enerji sektöründeki yatırım artışının, orta gerilim hücre siparişlerini olumlu etkileyeceği öngörülüyor.';
+        break;
+        
+      case 'material':
+        predictions = [
+          { value: '12.5%', label: 'Stok maliyeti azalması', probability: 0.79 },
+          { value: '34 gün', label: 'Optimum stok süresi', probability: 0.85 },
+          { value: '8.3%', label: 'Bakır malzeme fiyat artışı', probability: 0.72 },
+          { value: '42 adet', label: 'CB mekanizma ihtiyacı (aylık)', probability: 0.88 },
+          { value: '3.2%', label: 'Malzeme tedarik gecikmesi', probability: 0.76 }
+        ];
+        metrics = {
+          accuracy: 0.86,
+          mse: 0.09,
+          mae: 0.07,
+          r2: 0.82
+        };
+        explanation = 'Malzeme tahmin modeli, geçmiş stok hareket verileri, tedarik süreleri ve fiyat dalgalanmaları dikkate alınarak oluşturuldu. Özellikle kritik malzemeler için minimum stok seviyesi önerileri hesaplandı. Sonuçlar, JIT (tam zamanında) tedarik stratejisi için iyileştirme fırsatları olduğunu gösteriyor.';
+        break;
+        
+      default:
+        predictions = [
+          { value: '18.4%', label: 'Genel performans artışı', probability: 0.81 },
+          { value: '13.2%', label: 'Maliyet optimizasyonu', probability: 0.76 },
+          { value: '24.7%', label: 'Verimlilik artışı', probability: 0.79 }
+        ];
+        metrics = {
+          accuracy: 0.84,
+          precision: 0.82,
+          recall: 0.79,
+          f1: 0.81
+        };
+        explanation = 'Genel veri analizi, sistem performansını değerlendirmek için çeşitli metrikler kullanılarak yapıldı. Sonuçlar, belirli alanlarda iyileştirme potansiyeli olduğunu gösteriyor.';
+    }
+    
+    return {
+      predictions,
+      metrics,
+      explanation,
+      modelType: `${type.charAt(0).toUpperCase() + type.slice(1)} Tahmin Modeli`,
+      timestamp: new Date(),
+      confidence: predictions.reduce((sum, p) => sum + p.probability, 0) / predictions.length,
+      dataPoints: Math.floor(Math.random() * 1000) + 500
+    };
+  };
+  
+  // Sistem verilerini al
+  const getSystemData = async () => {
+    // Veri zaten yüklenmişse, onu kullan
+    if (systemData.value) {
+      return systemData.value;
+    }
+    
+    try {
+      // Gerçek bir API çağrısı yapılacak
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Örnek CAD modelleri
+      const dummySystemData = {
+        cadModels: [
+          {
+            id: 'rm36cb',
+            name: 'RM 36 CB Hücresi',
+            version: '2.1',
+            format: 'STEP',
+            lastUpdated: '2025-03-15',
+            path: '/models/rm36cb.step',
+            previewImage: '/assets/images/models/rm36cb-preview.png',
+            relatedDocs: [
+              { id: 'rm36cb-spec', name: 'RM 36 CB Teknik Şartname.pdf' },
+              { id: 'rm36cb-manual', name: 'RM 36 CB Montaj Kılavuzu.pdf' }
+            ]
+          },
+          {
+            id: 'rm36lb',
+            name: 'RM 36 LB Hücresi',
+            version: '1.8',
+            format: 'STEP',
+            lastUpdated: '2025-02-20',
+            path: '/models/rm36lb.step',
+            previewImage: '/assets/images/models/rm36lb-preview.png',
+            relatedDocs: [
+              { id: 'rm36lb-spec', name: 'RM 36 LB Teknik Şartname.pdf' }
+            ]
+          },
+          {
+            id: 'rm36bc',
+            name: 'RM 36 BC Barınak',
+            version: '1.5',
+            format: 'STEP',
+            lastUpdated: '2025-01-10',
+            path: '/models/rm36bc.step',
+            previewImage: '/assets/images/models/rm36bc-preview.png',
+            relatedDocs: [
+              { id: 'rm36bc-spec', name: 'RM 36 BC Teknik Şartname.pdf' }
+            ]
+          }
+        ]
+      };
+      
+      systemData.value = dummySystemData;
+      return dummySystemData;
+    } catch (error) {
+      console.error('Sistem verileri alınamadı:', error);
+      return null;
+    }
+  };
+  
+  // Model bileşenlerini al
+  const modelComponents = async (modelId) => {
+    // Gerçek bir API çağrısı yapılacak
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Dummy veri döndür
+    return {
+      success: true,
+      data: {
+        components: [
+          {
+            name: 'Ana Gövde',
+            material: 'Çelik',
+            weight: '120kg',
+            dimensions: '800 x 1200 x 600 mm',
+            position: 'Orta'
+          },
+          {
+            name: 'Kesici Mekanizma',
+            material: 'Bakır/Çelik',
+            weight: '35kg',
+            dimensions: '300 x 200 x 150 mm',
+            position: 'Üst Kısım'
+          },
+          {
+            name: 'Bara Bağlantısı',
+            material: 'Bakır',
+            weight: '12kg',
+            dimensions: '100 x 300 x 80 mm',
+            position: 'Arka'
+          },
+          {
+            name: 'Kontrol Panosu',
+            material: 'Plastik/Metal',
+            weight: '8kg',
+            dimensions: '250 x 350 x 120 mm',
+            position: 'Ön'
+          }
+        ]
+      }
+    };
+  };
+  
+  // Model ölçümlerini al
+  const modelMeasurements = async (modelId) => {
+    // Gerçek bir API çağrısı yapılacak
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Dummy veri döndür
+    return {
+      success: true,
+      data: {
+        measurements: [
+          {
+            name: 'Toplam Yükseklik',
+            value: 2100,
+            unit: 'mm',
+            type: 'height',
+            description: 'Zeminden en üst noktaya kadar olan mesafe'
+          },
+          {
+            name: 'Toplam Genişlik',
+            value: 800,
+            unit: 'mm',
+            type: 'width',
+            description: 'Hücrenin dış genişliği'
+          },
+          {
+            name: 'Toplam Derinlik',
+            value: 1450,
+            unit: 'mm',
+            type: 'depth',
+            description: 'Ön yüzeyden arka yüzeye mesafe'
+          },
+          {
+            name: 'İç Yükseklik',
+            value: 1950,
+            unit: 'mm',
+            type: 'height',
+            description: 'Hücre içi kullanılabilir yükseklik'
+          },
+          {
+            name: 'Bara Genişliği',
+            value: 100,
+            unit: 'mm',
+            type: 'width',
+            description: 'Ana bara genişliği'
+          },
+          {
+            name: 'Panel Kalınlığı',
+            value: 2,
+            unit: 'mm',
+            type: 'depth',
+            description: 'Dış panel saç kalınlığı'
+          }
+        ]
+      }
+    };
+  };
+  
+  // Yanıt oluştur
+  const generateResponse = async (message) => {
+    // Gerçek bir API çağrısı yapılacak
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Basit bir yanıt döndür
+    return {
+      text: `Merhaba, "${message}" sorunuza yanıt olarak şunları söyleyebilirim: Bu konuda şirket içi veriler incelendi ve sonuçlar analiz edildi. Daha detaylı bilgi için ilgili raporları inceleyebilirsiniz.`,
+      source: supportedModels[currentModelKey.value].name
+    };
+  };
+  
+  // Özel makine öğrenmesi modeli eğit
+  const trainCustomModel = async (config) => {
+    if (!config || !config.name || !config.type || !config.dataSource) {
+      throw new Error('Model için gerekli konfigürasyon eksik');
+    }
+    
     isProcessing.value = true;
     
     try {
-      // Gerçek uygulamada teknik dokümanları alıp işle
-      // const documents = await technicalStore.getDocuments();
-      // const context = prepareDocumentContext(documents, question);
+      // Eğitim sürecini simüle et
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
-      // DeepSeek API'ye gönder
-      // return await callDeepSeekAPIWithContext(question, context);
+      const modelId = `model-${Date.now()}`;
       
-      // Simülasyon için:
-      await new Promise(r => setTimeout(r, 1500)); // Gecikme simülasyonu
+      // Model bilgilerini sakla
+      learningModels.value[modelId] = {
+        id: modelId,
+        name: config.name,
+        type: config.type,
+        dataSource: config.dataSource,
+        createdAt: new Date(),
+        status: 'trained',
+        accuracy: Math.random() * 0.2 + 0.8, // 0.8-1.0 arası
+        metrics: {
+          precision: Math.random() * 0.2 + 0.78,
+          recall: Math.random() * 0.2 + 0.78,
+          f1: Math.random() * 0.2 + 0.78
+        }
+      };
       
-      const lowerQuestion = question.toLowerCase();
-      let response, relatedDocs = [];
-      
-      // Simüle edilmiş yanıtlar
-      if (lowerQuestion.includes('akım trafosu')) {
-        response = {
-          answer: {
-            text: 'RM 36 CB hücresinde genellikle 200-400/5-5A 5P20 7,5/15VA veya 300-600/5-5A 5P20 7,5/15VA özelliklerinde toroidal tip akım trafoları kullanılmaktadır. Canias kodları: 144866% (KAP-80/190-95) veya 142227% (KAT-85/190-95).',
-            reference: 'Akım Trafosu Seçim Kılavuzu'
-          },
-          relatedDocs: [
-            { id: 'doc5', name: 'Akım Trafosu Seçim Kılavuzu', revision: '1.3' },
-            { id: 'doc1', name: 'RM 36 CB Teknik Çizim', revision: '2.1' }
-          ]
-        };
-      } else if (lowerQuestion.includes('bara')) {
-        response = {
-          answer: {
-            text: 'OG Hücrelerde kullanılan baralar genellikle elektrolitik bakırdır. RM 36 serisi için 582mm ve 432mm uzunluklarında 40x10mm kesitinde düz bakır baralar kullanılır. Stok kodları: 109367% (582mm) ve 109363% (432mm).',
-            reference: 'RM 36 Serisi Bara Montaj Kılavuzu'
-          },
-          relatedDocs: [
-            { id: 'doc6', name: 'RM 36 Serisi Bara Montaj Kılavuzu', revision: '1.8' },
-            { id: 'doc1', name: 'RM 36 CB Teknik Çizim', revision: '2.1' }
-          ]
-        };
-      } else {
-        response = {
-          answer: {
-            text: 'RM 36 serisi hücreler, 36kV orta gerilim için tasarlanmıştır. Ana bileşenleri: kesici/yük ayırıcı, akım trafosu, gerilim trafosu, koruma rölesi ve bara sisteminden oluşur. Temel hücre tipleri: CB (Kesicili), LB (Yük Ayırıcılı), FL (Sigortalı), RMU (Ring Main Unit).',
-            reference: 'RM 36 Serisi Genel Teknik Şartname'
-          },
-          relatedDocs: [
-            { id: 'doc7', name: 'RM 36 Serisi Genel Teknik Şartname', revision: '3.0' },
-            { id: 'doc1', name: 'RM 36 CB Teknik Çizim', revision: '2.1' }
-          ]
-        };
-      }
-      
-      return response;
-    } catch (error) {
-      console.error('Teknik sorgulama hatası:', error);
-      throw error;
+      return modelId;
     } finally {
       isProcessing.value = false;
     }
   };
   
-  /**
-   * Konuşma geçmişini temizler
-   */
-  const clearHistory = () => {
-    history.value = [];
-  };
-  
-  /**
-   * Öngörüler ve analizler oluştur
-   * myrule2.mdc'deki yapay zeka öngörülerini karşılar
-   */
-  const generateInsights = async () => {
+  // Özel modeli çalıştır
+  const runCustomModel = async (modelId, data) => {
+    if (!modelId || !learningModels.value[modelId]) {
+      throw new Error('Geçersiz model ID');
+    }
+    
+    const model = learningModels.value[modelId];
+    
+    isProcessing.value = true;
+    
     try {
-      // Gerçek uygulamada farklı sistem kaynaklarından veri çekilecek
-      const systemData = await getSystemData();
+      // Tahmin sürecini simüle et
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // DeepSeek API ile öngörüler üretilecek
-      // const rawInsights = await callDeepSeekAPIForInsights(systemData);
-      // return processInsights(rawInsights);
-      
-      // Simüle edilmiş öngörüler
-      return [
-        {
-          title: "36kV Kesici Stok Uyarısı",
-          description: "36kV kesiciler kritik seviyeye düştü (4 adet kaldı). Bu hafta 2 yeni sipariş bekleniyor ve tahminlere göre yetersiz kalabilir.",
-          importance: "high",
-          type: "warning",
-          source: "Stok Analizi",
-          timestamp: new Date(new Date().getTime() - 35 * 60000), // 35 dakika önce
-          details: {
-            type: "comparison",
-            leftLabel: "Mevcut Stok",
-            leftValue: "4 adet",
-            rightLabel: "Minimum Gereken",
-            rightValue: "6 adet"
-          },
-          recommendations: [
-            "Acil sipariş planlaması gerekiyor",
-            "Alternatif tedarikçilerle iletişime geçin"
-          ]
-        },
-        {
-          title: "Üretim Verimliliği Artışı Tespiti",
-          description: "Son 30 günde üretim verimliliği %8 artış gösterdi. Ana katkı faktörü: Montaj süreçlerindeki iyileştirmeler.",
-          importance: "medium",
-          type: "improvement",
-          source: "Üretim Metrikleri Analizi",
-          timestamp: new Date(new Date().getTime() - 3 * 3600000) // 3 saat önce
-        },
-        // ... diğer öngörüler
-      ];
-    } catch (error) {
-      console.error('Öngörü oluşturma hatası:', error);
-      return [];
+      // Model tipine göre sonuç döndür
+      return {
+        modelId,
+        modelName: model.name,
+        timestamp: new Date(),
+        accuracy: model.accuracy,
+        predictions: generateCustomPredictions(model.type)
+      };
+    } finally {
+      isProcessing.value = false;
     }
   };
   
-  // Yükleme sırasında API anahtarını kontrol et
-  loadApiKey();
+  // Özel model için tahminler oluştur
+  const generateCustomPredictions = (type) => {
+    const predictions = [];
+    
+    switch (type) {
+      case 'classification':
+        predictions.push(
+          { label: 'Sınıf A', probability: Math.random() * 0.4 + 0.6 },
+          { label: 'Sınıf B', probability: Math.random() * 0.3 + 0.3 },
+          { label: 'Sınıf C', probability: Math.random() * 0.2 + 0.1 }
+        );
+        break;
+        
+      case 'regression':
+        predictions.push(
+          { value: (Math.random() * 100 + 100).toFixed(2), confidence: Math.random() * 0.2 + 0.8 }
+        );
+        break;
+        
+      case 'anomaly':
+        const isAnomaly = Math.random() > 0.7;
+        predictions.push(
+          { 
+            isAnomaly, 
+            anomalyScore: isAnomaly ? Math.random() * 0.4 + 0.6 : Math.random() * 0.3,
+            description: isAnomaly ? 'Anomali tespit edildi' : 'Normal durum' 
+          }
+        );
+        break;
+        
+      default:
+        predictions.push(
+          { label: 'Sonuç', probability: Math.random() * 0.2 + 0.8 }
+        );
+    }
+    
+    return predictions;
+  };
+  
+  // CAD model navigasyon
+  const navigateToCADViewer = (modelId) => {
+    router.push({
+      name: 'ModelViewer',
+      params: { id: modelId }
+    });
+  };
   
   return {
-    isProcessing,
-    lastResponse,
     history,
+    isProcessing,
+    modelLoading,
+    supportedModels,
+    currentModelKey,
     sendMessage,
     clearHistory,
-    queryTechnical,
-    generateInsights,
-    setApiKey
+    switchModel,
+    getCurrentModel,
+    getSystemData,
+    modelComponents,
+    modelMeasurements,
+    trainCustomModel,
+    runCustomModel,
+    navigateToCADViewer
   };
 }
 
-// main.js dosyasında kullanılan aiService örneğini oluşturup dışa aktarıyorum
-export const aiService = {
-  sendMessage: async (message) => {
-    // Temel yapay zeka yanıtı sağlayan basit bir fonksiyon
-    const response = {
-      text: `Sorgunuza yanıt: ${message}. Detaylı bilgi için lütfen ilgili sayfada yapay zeka özelliklerini kullanın.`,
-      source: 'MehmetEndüstriyelTakip Sistemi'
-    };
-    return response;
-  },
+// Model tipleri ve yetenekleri
+export const MODEL_TYPES = {
+  MATERIAL_PREDICTION: 'material-prediction',
+  PRODUCTION_OPTIMIZATION: 'production-optimization',
+  MAINTENANCE_PREDICTION: 'maintenance-prediction',
+  QUALITY_CONTROL: 'quality-control',
+  DEMAND_FORECAST: 'demand-forecast',
+  RESOURCE_ALLOCATION: 'resource-allocation',
+  INVENTORY_OPTIMIZATION: 'inventory-optimization',
+  CAD_MODEL_ANALYSIS: 'cad-model-analysis'
+};
+
+// Makine öğrenmesi bağlamı
+const mlContext = ref({
+  isReady: false,
+  models: {},
+  activeModel: null,
+  predictions: [],
+  isTraining: false,
+  trainingProgress: 0,
+  datasetStats: null,
+  error: null
+});
+
+// AI API yapılandırması
+const apiConfig = {
+  baseUrl: import.meta.env.VITE_AI_API_URL || 'https://api.mets-ai.com/v2',
+  prediction: '/predict',
+  training: '/train',
+  models: '/models',
+  datasets: '/datasets',
+  cad: '/cad',
+  chat: '/chat'
+};
+
+// API istek oluşturucu
+const createApiRequest = async (endpoint, method = 'GET', data = null) => {
+  const auth = getAuth();
+  const user = auth.currentUser;
   
-  queryTechnical: async (question) => {
-    // Teknik sorgulamalar için basit bir fonksiyon
-    return {
-      answer: {
-        text: `Sorgunuz işleme alındı: ${question}. Daha spesifik bilgiler için lütfen teknik dokümantasyon sayfasını kullanın.`,
-        reference: 'RM 36 Serisi Genel Teknik Şartname'
-      },
-      relatedDocs: [
-        { id: 'doc7', name: 'RM 36 Serisi Genel Teknik Şartname', revision: '3.0' }
-      ]
-    };
-  },
-  
-  generateInsights: async () => {
-    // Temel öngörüler sağlayan fonksiyon
-    return [
-      {
-        title: "Yapay Zeka Öngörüleri",
-        description: "Yapay zeka öngörüleri ve analizler için ilgili sayfayı ziyaret edin.",
-        importance: "medium",
-        type: "info",
-        source: "MehmetEndüstriyelTakip Sistemi",
-        timestamp: new Date()
-      }
-    ];
+  if (!user) {
+    throw new Error('Kullanıcı oturumu bulunamadı');
   }
+  
+  const token = await user.getIdToken();
+  
+  return axios({
+    method,
+    url: `${apiConfig.baseUrl}${endpoint}`,
+    data,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+};
+
+/**
+ * Makine öğrenmesi modellerini yükler
+ */
+export const loadModels = async () => {
+  try {
+    mlContext.value.isReady = false;
+    mlContext.value.error = null;
+    
+    const response = await createApiRequest(apiConfig.models);
+    
+    // Modelleri işle ve sakla
+    if (response.data && Array.isArray(response.data.models)) {
+      const models = {};
+      
+      response.data.models.forEach(model => {
+        models[model.id] = {
+          id: model.id,
+          name: model.name,
+          description: model.description,
+          type: model.type,
+          version: model.version,
+          accuracy: model.metrics?.accuracy,
+          lastUpdated: new Date(model.lastUpdated),
+          supportedFormats: model.supportedFormats || [],
+          capabilities: model.capabilities || []
+        };
+      });
+      
+      mlContext.value.models = models;
+      
+      // Bir model aktif değilse ve kullanılabilir model varsa, ilk modeli etkinleştir
+      if (!mlContext.value.activeModel && Object.keys(models).length > 0) {
+        mlContext.value.activeModel = Object.keys(models)[0];
+      }
+      
+      mlContext.value.isReady = true;
+      return models;
+    }
+    
+    return {};
+  } catch (error) {
+    console.error('AI modelleri yüklenemedi:', error);
+    mlContext.value.error = 'AI modelleri yüklenirken bir hata oluştu';
+    return {};
+  }
+};
+
+/**
+ * Aktif modeli değiştirir
+ * @param {string} modelId - Model kimliği
+ */
+export const setActiveModel = (modelId) => {
+  if (mlContext.value.models[modelId]) {
+    mlContext.value.activeModel = modelId;
+    return true;
+  }
+  return false;
+};
+
+/**
+ * Gelişmiş tahmin işlemi gerçekleştirir
+ * @param {string} modelType - Tahmin modeli türü
+ * @param {Object} data - Tahmin için giriş verileri
+ * @param {Object} options - Ek tahmin seçenekleri
+ */
+export const runPrediction = async (modelType, data, options = {}) => {
+  try {
+    // Aktif model kontrol
+    const modelId = options.modelId || mlContext.value.activeModel;
+    
+    if (!modelId) {
+      throw new Error('Aktif bir model seçili değil');
+    }
+    
+    // API isteği gönder
+    const response = await createApiRequest(apiConfig.prediction, 'POST', {
+      modelId,
+      modelType,
+      data,
+      options
+    });
+    
+    // Yanıtı işle
+    if (response.data && response.data.prediction) {
+      const prediction = {
+        id: response.data.id || generateId(),
+        modelType,
+        modelId,
+        timestamp: new Date(),
+        predictions: response.data.prediction.results || [],
+        confidence: response.data.prediction.confidence,
+        explanation: response.data.prediction.explanation,
+        dataPoints: response.data.prediction.dataPointsCount,
+        metrics: response.data.prediction.metrics || {},
+        rawResponse: response.data
+      };
+      
+      // Tahmin geçmişine ekle
+      mlContext.value.predictions.unshift(prediction);
+      
+      // Son 50 tahmini tut
+      if (mlContext.value.predictions.length > 50) {
+        mlContext.value.predictions = mlContext.value.predictions.slice(0, 50);
+      }
+      
+      return prediction;
+    } else {
+      throw new Error('Geçersiz tahmin yanıtı');
+    }
+  } catch (error) {
+    console.error('Tahmin hatası:', error);
+    mlContext.value.error = 'Tahmin işlemi sırasında bir hata oluştu';
+    throw error;
+  }
+};
+
+/**
+ * Üretim optimizasyonu tahmini yapar
+ * @param {Object} productionData - Üretim verileri
+ */
+export const predictProductionOptimization = async (productionData) => {
+  return runPrediction(MODEL_TYPES.PRODUCTION_OPTIMIZATION, productionData);
+};
+
+/**
+ * Malzeme gereksinimleri tahmini yapar
+ * @param {Object} orderData - Sipariş verileri
+ */
+export const predictMaterialRequirements = async (orderData) => {
+  return runPrediction(MODEL_TYPES.MATERIAL_PREDICTION, orderData);
+};
+
+/**
+ * Bakım gereksinimleri tahmini yapar
+ * @param {Object} equipmentData - Ekipman verileri
+ */
+export const predictMaintenanceNeeds = async (equipmentData) => {
+  return runPrediction(MODEL_TYPES.MAINTENANCE_PREDICTION, equipmentData);
+};
+
+/**
+ * Kalite kontrol tahmini yapar
+ * @param {Object} productData - Ürün verileri
+ */
+export const predictQualityControl = async (productData) => {
+  return runPrediction(MODEL_TYPES.QUALITY_CONTROL, productData);
+};
+
+/**
+ * Talep tahmini yapar
+ * @param {Object} historicalData - Geçmiş veriler
+ */
+export const predictDemandForecast = async (historicalData) => {
+  return runPrediction(MODEL_TYPES.DEMAND_FORECAST, historicalData);
+};
+
+/**
+ * CAD modeli analizi yapar
+ * @param {Object} modelData - CAD model verileri
+ */
+export const analyzeCADModel = async (modelData) => {
+  try {
+    // API isteği gönder
+    const response = await createApiRequest(apiConfig.cad + '/analyze', 'POST', {
+      modelData,
+      modelId: mlContext.value.activeModel
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('CAD model analizi hatası:', error);
+    mlContext.value.error = 'CAD model analizi sırasında bir hata oluştu';
+    throw error;
+  }
+};
+
+/**
+ * 3D modeli optimize eder
+ * @param {Object} modelData - 3D model verileri
+ * @param {Object} optimizationParams - Optimizasyon parametreleri
+ */
+export const optimizeModel = async (modelData, optimizationParams) => {
+  try {
+    const response = await createApiRequest(apiConfig.cad + '/optimize', 'POST', {
+      modelData,
+      params: optimizationParams
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Model optimizasyonu hatası:', error);
+    throw error;
+  }
+};
+
+/**
+ * AI sohbet mesajı gönderir
+ * @param {string} message - Kullanıcı mesajı
+ * @param {Array} history - Önceki konuşma geçmişi
+ * @param {Object} context - Ek bağlam bilgileri
+ */
+export const sendChatMessage = async (message, history = [], context = {}) => {
+  try {
+    const response = await createApiRequest(apiConfig.chat, 'POST', {
+      message,
+      history,
+      context
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('AI sohbet hatası:', error);
+    throw error;
+  }
+};
+
+/**
+ * İlgili dokümanları arar
+ * @param {string} query - Arama sorgusu
+ * @param {Object} filters - Arama filtreleri
+ */
+export const searchRelatedDocuments = async (query, filters = {}) => {
+  try {
+    const response = await createApiRequest('/documents/search', 'POST', {
+      query,
+      filters
+    });
+    
+    return response.data.documents || [];
+  } catch (error) {
+    console.error('Doküman arama hatası:', error);
+    throw error;
+  }
+};
+
+/**
+ * Makine öğrenmesi modeli eğitir
+ * @param {string} modelType - Model türü
+ * @param {string} datasetId - Veri seti kimliği
+ * @param {Object} params - Eğitim parametreleri
+ */
+export const trainModel = async (modelType, datasetId, params = {}) => {
+  try {
+    mlContext.value.isTraining = true;
+    mlContext.value.trainingProgress = 0;
+    
+    const response = await createApiRequest(apiConfig.training, 'POST', {
+      modelType,
+      datasetId,
+      params
+    });
+    
+    // Training başlatıldı, sonuç dönene kadar takip et
+    const trainingId = response.data.trainingId;
+    
+    const checkTrainingStatus = async () => {
+      const statusResponse = await createApiRequest(`${apiConfig.training}/${trainingId}/status`, 'GET');
+      
+      mlContext.value.trainingProgress = statusResponse.data.progress;
+      
+      if (statusResponse.data.status === 'completed') {
+        mlContext.value.isTraining = false;
+        // Eğitim tamamlandı, modelleri yeniden yükle
+        await loadModels();
+        return statusResponse.data;
+      } else if (statusResponse.data.status === 'failed') {
+        mlContext.value.isTraining = false;
+        mlContext.value.error = statusResponse.data.error || 'Model eğitimi başarısız oldu';
+        throw new Error(mlContext.value.error);
+      } else {
+        // Devam ediyor, 3 saniye sonra tekrar kontrol et
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return checkTrainingStatus();
+      }
+    };
+    
+    return checkTrainingStatus();
+  } catch (error) {
+    console.error('Model eğitimi hatası:', error);
+    mlContext.value.isTraining = false;
+    mlContext.value.error = 'Model eğitimi sırasında bir hata oluştu';
+    throw error;
+  }
+};
+
+/**
+ * Veri seti istatistiklerini getirir
+ * @param {string} datasetId - Veri seti kimliği
+ */
+export const getDatasetStats = async (datasetId) => {
+  try {
+    const response = await createApiRequest(`${apiConfig.datasets}/${datasetId}/stats`, 'GET');
+    
+    mlContext.value.datasetStats = response.data;
+    return response.data;
+  } catch (error) {
+    console.error('Veri seti istatistikleri hatası:', error);
+    throw error;
+  }
+};
+
+/**
+ * Benzersiz kimlik oluşturur
+ */
+const generateId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
+};
+
+/**
+ * ML bağlamını döndürür
+ */
+export const useMachineLearning = () => {
+  return mlContext;
+};
+
+// Doğrudan dışa aktarılan aiService nesnesi - main.js için
+export const aiService = {
+  loadModels,
+  setActiveModel,
+  runPrediction,
+  predictProductionOptimization,
+  predictMaterialRequirements,
+  predictMaintenanceNeeds,
+  predictQualityControl,
+  predictDemandForecast,
+  analyzeCADModel,
+  optimizeModel,
+  sendChatMessage,
+  searchRelatedDocuments,
+  trainModel,
+  getDatasetStats,
+  useMachineLearning,
+  MODEL_TYPES
+};
+
+export default {
+  loadModels,
+  setActiveModel,
+  runPrediction,
+  predictProductionOptimization,
+  predictMaterialRequirements,
+  predictMaintenanceNeeds,
+  predictQualityControl,
+  predictDemandForecast,
+  analyzeCADModel,
+  optimizeModel,
+  sendChatMessage,
+  searchRelatedDocuments,
+  trainModel,
+  getDatasetStats,
+  useMachineLearning,
+  MODEL_TYPES
 };

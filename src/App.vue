@@ -16,8 +16,9 @@
   </div>
 </template>
 
-<script>
-import { ref, computed, onMounted } from 'vue';
+<script setup>
+import { ref, computed, onMounted, shallowRef } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import AIChatbotButton from '@/components/ai/AIChatbotButton.vue';
 import AIChatModal from '@/components/ai/AIChatModal.vue';
@@ -25,152 +26,110 @@ import Notifications from '@/components/ui/Notifications.vue';
 import { useTechnicalStore } from '@/store/technical';
 import { useAuthStore } from '@/store/auth';
 
-export default {
-  name: 'App',
-  components: {
-    AIChatbotButton,
-    AIChatModal,
-    Notifications
-  },
-  setup() {
-    const router = useRouter();
-    const technicalStore = useTechnicalStore();
-    const authStore = useAuthStore();
-    
-    // Yükleme durumu
-    const loading = ref(true);
-    const loadingMessage = ref('Yükleniyor...');
-    
-    // AI Chat Modal durumu
-    const isAIChatModalOpen = computed(() => technicalStore.isAIChatModalOpen);
-    
-    // Kimlik doğrulama durumu
-    const isAuthenticated = computed(() => authStore.isAuthenticated);
-    
-    // Modal'ı kapat
-    const closeAIChatModal = () => {
-      technicalStore.setAIChatModalOpen(false);
-    };
-    
-    // Geliştirme ortamında otomatik demo giriş
-    const autoDemoLogin = async () => {
-      console.log('Otomatik demo giriş kontrolü yapılıyor...');
-      
-      // Eğer kullanıcı giriş yapmamışsa ve URL'de demo=true parametresi varsa veya geliştirme modundaysak
-      if (!authStore.isAuthenticated && (window.location.search.includes('demo=true') || import.meta.env.DEV)) {
-        console.log('Otomatik demo giriş başlatılıyor');
-        loadingMessage.value = 'Demo hesabı hazırlanıyor...';
-        try {
-          const result = await authStore.demoLogin();
-          if (result.success) {
-            console.log('Otomatik demo giriş başarılı');
-          } else {
-            console.error('Otomatik demo giriş başarısız:', result.error);
-          }
-        } catch (error) {
-          console.error('Otomatik demo giriş hatası:', error);
-        }
-      }
-    };
-    
-    // Auth durumunu kontrol et
-    onMounted(async () => {
-      // Minimum ve maksimum yükleme sürelerini ayarla
-      const MIN_LOADING_TIME = 800;
-      const MAX_LOADING_TIME = 6000;
-      const startTime = Date.now();
-      
-      // Maksimum yükleme süresi için zaman aşımı
-      const timeoutId = setTimeout(() => {
-        if (loading.value) {
-          console.warn('Auth durumu kontrolü zaman aşımına uğradı, yükleme ekranı kapatılıyor');
-          loading.value = false;
-        }
-      }, MAX_LOADING_TIME);
-      
-      try {
-        console.log('Auth durumu kontrol ediliyor...');
-        loadingMessage.value = 'Kimlik bilgileri kontrol ediliyor...';
-        
-        // Firebase'in varlığını kontrol et
-        if (typeof window.firebase === 'undefined' || !window.firebase.auth) {
-          console.warn('Firebase yüklenemedi, demo moda geçiliyor');
-          loadingMessage.value = 'Demo moda geçiliyor...';
-          await autoDemoLogin();
-        } else {
-          // Promise.race ile ya auth durumu kontrolünü ya da timeout'u bekle
-          const authPromise = new Promise(async (resolve) => {
-            try {
-              const result = await authStore.initialize();
-              resolve(result);
-            } catch (error) {
-              resolve({ success: false, error });
-            }
-          });
-          
-          const timeoutPromise = new Promise(resolve => 
-            setTimeout(() => resolve({ success: false, error: 'timeout' }), 5000)
-          );
-          
-          const result = await Promise.race([authPromise, timeoutPromise]);
-          
-          if (result.error === 'timeout') {
-            console.warn('Auth durumu kontrolü zaman aşımına uğradı');
-            loadingMessage.value = 'Bağlantı zaman aşımına uğradı, devam ediliyor...';
-            // Demo giriş yapmayı dene
-            await autoDemoLogin();
-          } else if (result.success) {
-            loadingMessage.value = 'Kimlik doğrulama başarılı...';
-            if (!result.isAuthenticated) {
-              // Geliştirme ortamında otomatik demo giriş
-              await autoDemoLogin();
-            }
-          } else {
-            console.error('Auth initialize hatası:', result.error);
-            loadingMessage.value = 'Giriş hatası, devam ediliyor...';
-            // Demo giriş yapmayı dene
-            await autoDemoLogin();
-          }
-        }
-      } catch (error) {
-        console.error('Auth initialize genel hatası:', error);
-        loadingMessage.value = 'Bir hata oluştu, devam ediliyor...';
-        // Demo giriş yapmayı dene
-        await autoDemoLogin();
-      } finally {
-        clearTimeout(timeoutId); // Zaman aşımını temizle
-        
-        // Kimlik durumu kontrolü bittikten sonra yükleme ekranını kaldır
-        // Minimum gösterme süresini garantilemek için
-        const elapsed = Date.now() - startTime;
-        const remainingTime = Math.max(0, MIN_LOADING_TIME - elapsed);
-        
-        setTimeout(() => {
-          loading.value = false;
-          console.log('Uygulama yükleme tamamlandı, dashboard görüntüleniyor');
-        }, remainingTime);
-      }
-    });
-    
-    return {
-      loading,
-      loadingMessage,
-      isAuthenticated,
-      isAIChatModalOpen,
-      closeAIChatModal
-    };
-  }
+const router = useRouter();
+const technicalStore = useTechnicalStore();
+const authStore = useAuthStore();
+
+// Store'dan reactive properties
+const { isAuthenticated } = storeToRefs(authStore);
+const { isAIChatModalOpen } = storeToRefs(technicalStore);
+
+// Yükleme durumu
+const loading = ref(true);
+const loadingMessage = ref('Yükleniyor...');
+
+// Modal'ı kapat
+const closeAIChatModal = () => {
+  technicalStore.setAIChatModalOpen(false);
 };
+
+// Geliştirme ortamında otomatik demo giriş
+const autoDemoLogin = async () => {
+  console.log('Otomatik demo giriş kontrolü yapılıyor...');
+  
+  // Eğer kullanıcı giriş yapmamışsa ve URL'de demo=true parametresi varsa veya geliştirme modundaysak
+  if (!isAuthenticated.value && (window.location.search.includes('demo=true') || import.meta.env.DEV)) {
+    console.log('Otomatik demo giriş başlatılıyor');
+    loadingMessage.value = 'Demo hesabı hazırlanıyor...';
+    try {
+      const result = await authStore.demoLogin();
+      if (result.success) {
+        console.log('Otomatik demo giriş başarılı');
+        return true;
+      } else {
+        console.error('Otomatik demo giriş başarısız:', result.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Otomatik demo giriş hatası:', error);
+      return false;
+    }
+  }
+  return false;
+};
+
+// Auth durumunu kontrol et
+onMounted(async () => {
+  // Minimum ve maksimum yükleme sürelerini ayarla
+  const MIN_LOADING_TIME = 800;
+  const MAX_LOADING_TIME = 6000;
+  const startTime = Date.now();
+  
+  // Maksimum yükleme süresi için zaman aşımı
+  const timeoutId = setTimeout(() => {
+    if (loading.value) {
+      console.warn('Auth durumu kontrolü zaman aşımına uğradı, yükleme ekranı kapatılıyor');
+      loading.value = false;
+    }
+  }, MAX_LOADING_TIME);
+  
+  try {
+    console.log('Auth durumu kontrol ediliyor...');
+    loadingMessage.value = 'Kimlik bilgileri kontrol ediliyor...';
+    
+    // Initialize auth store
+    const result = await authStore.initialize().catch(() => ({ success: false }));
+    
+    // Kimlik doğrulama başarısız ise demo giriş yap
+    if (!result.success || !isAuthenticated.value) {
+      loadingMessage.value = 'Demo moda geçiliyor...';
+      await autoDemoLogin();
+    } else {
+      loadingMessage.value = 'Kimlik doğrulama başarılı...';
+    }
+  } catch (error) {
+    console.error('Auth initialize genel hatası:', error);
+    loadingMessage.value = 'Bir hata oluştu, demo moda geçiliyor...';
+    // Demo giriş yapmayı dene
+    await autoDemoLogin();
+  } finally {
+    clearTimeout(timeoutId); // Zaman aşımını temizle
+    
+    // Yükleme ekranını minimum süre sonra kaldır
+    const elapsed = Date.now() - startTime;
+    const remainingTime = Math.max(0, MIN_LOADING_TIME - elapsed);
+    
+    setTimeout(() => {
+      loading.value = false;
+      console.log('Uygulama yükleme tamamlandı, dashboard görüntüleniyor');
+      
+      // Önceden yüklenmiş sayfa yoksa ve giriş başarılıysa ana sayfaya yönlendir
+      if (router.currentRoute.value.path === '/' && isAuthenticated.value) {
+        router.push('/');
+      }
+    }, remainingTime);
+  }
+});
 </script>
 
 <style lang="scss">
 @forward '@/styles/main.scss';
 
 #app {
-  font-family: 'Inter', 'Avenir', Helvetica, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #2c3e50;
+  color: var(--text-color, #2c3e50);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -186,13 +145,13 @@ export default {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background-color: #f8f9fa;
+  background-color: var(--bg-loading, #f8f9fa);
   z-index: 9999;
   
   .spinner {
     width: 50px;
     height: 50px;
-    border: 3px solid rgba(0, 123, 255, 0.1);
+    border: 3px solid rgba(13, 110, 253, 0.1);
     border-radius: 50%;
     border-top-color: #0d6efd;
     animation: spin 1s linear infinite;
@@ -205,11 +164,13 @@ export default {
     background: linear-gradient(45deg, #0d6efd, #6610f2);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-fill-color: transparent;
   }
   
   .loading-text {
     margin-top: 10px;
-    color: #6c757d;
+    color: var(--text-muted, #6c757d);
     font-size: 14px;
   }
 }
@@ -218,10 +179,78 @@ export default {
   to { transform: rotate(360deg); }
 }
 
-@media (prefers-color-scheme: dark) {
-  .app-loading {
-    background-color: #121212;
-    color: #e2e2e2;
+// Dark mode için CSS değişkenleri
+body {
+  --text-color: #2c3e50;
+  --bg-content: #f5f7fa;
+  --bg-card: #ffffff;
+  --bg-loading: #f8f9fa;
+  --text-muted: #6c757d;
+  --border-color: rgba(0, 0, 0, 0.125);
+  --material-critical-bg: #ffebee;
+  --material-required-bg: #fff3e0;
+  --material-available-bg: #e8f5e9;
+  --light-color: #ecf0f1;
+  --header-bg: #ffffff;
+  --sidebar-bg: #2c3e50;
+  
+  &.dark-mode {
+    --text-color: #e2e2e2;
+    --bg-content: #121212;
+    --bg-card: #1e1e1e;
+    --bg-loading: #121212;
+    --text-muted: #adb5bd;
+    --border-color: rgba(255, 255, 255, 0.125);
+    --material-critical-bg: rgba(244, 67, 54, 0.15);
+    --material-required-bg: rgba(255, 152, 0, 0.15);
+    --material-available-bg: rgba(76, 175, 80, 0.15);
+    --light-color: #1e1e1e;
+    --header-bg: #1e1e1e;
+    --sidebar-bg: #1a1a1a;
+    
+    .app-loading {
+      .spinner {
+        border-color: rgba(255, 255, 255, 0.1);
+        border-top-color: #0d6efd;
+      }
+      
+      .loading-text {
+        color: #adb5bd;
+      }
+    }
+    
+    .card {
+      background-color: var(--bg-card);
+      border-color: var(--border-color);
+    }
+    
+    .card-header {
+      background-color: var(--bg-card);
+      border-color: var(--border-color);
+    }
+    
+    .table {
+      color: var(--text-color);
+      
+      th {
+        background-color: var(--light-color);
+        color: var(--text-color);
+      }
+    }
+    
+    .text-muted {
+      color: var(--text-muted) !important;
+    }
+    
+    .border-0 {
+      border-color: var(--border-color) !important;
+    }
+    
+    .list-group-item {
+      background-color: var(--bg-card);
+      color: var(--text-color);
+      border-color: var(--border-color);
+    }
   }
 }
 </style>

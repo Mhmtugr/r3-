@@ -139,7 +139,7 @@
                     </div>
                     <span v-else>-</span>
                   </td>
-                  <td>{{ new Date(order.orderDate).toLocaleDateString('tr-TR') }}</td>
+                  <td>{{ formatDate(order.orderDate) }}</td>
                   <td>
                     <span :class="'badge ' + getStatusBadgeClass(order.status)">
                       {{ getStatusText(order.status) }}
@@ -225,6 +225,9 @@
 <script setup>
 import { ref } from 'vue';
 import { useOrders } from './useOrders';
+import { formatDate } from '@/utils/dateUtils';
+import { deleteOrder as deleteOrderService } from '@/services/order-service';
+import { useToast } from '@/composables/useToast';
 
 // useOrders composable'dan gerekli state ve metotları al
 const {
@@ -247,6 +250,9 @@ const {
   getStatusBadgeClass
 } = useOrders();
 
+// Toast composable
+const { showToast } = useToast();
+
 // Silme işlemi için state
 const showDeleteModal = ref(false);
 const selectedOrder = ref(null);
@@ -258,18 +264,19 @@ function confirmDelete(order) {
   showDeleteModal.value = true;
 }
 
-// Sipariş silme işlemi
+// Sipariş silme işlemi (servis kullanarak)
 async function deleteOrder() {
   if (!selectedOrder.value) return;
   
   try {
     isDeleting.value = true;
+
+    // Order servisini kullanarak siparişi sil
+    await deleteOrderService(selectedOrder.value.id);
     
-    // Firebase kullanılabilirse
-    if (window.firebase && window.firebase.firestore) {
-      await window.firebase.firestore().collection('orders').doc(selectedOrder.value.id).delete();
-    }
-    
+    // Başarı mesajı göster
+    showToast(`Sipariş (${selectedOrder.value.orderNo}) başarıyla silindi.`, 'success');
+
     // Listeyi yenile
     await loadOrders();
     
@@ -278,7 +285,8 @@ async function deleteOrder() {
     selectedOrder.value = null;
   } catch (error) {
     console.error('Sipariş silinirken hata oluştu:', error);
-    alert('Sipariş silinemedi: ' + error.message);
+    // Hata mesajı göster
+    showToast('Sipariş silinemedi: ' + (error.message || 'Bilinmeyen bir hata oluştu.'), 'error');
   } finally {
     isDeleting.value = false;
   }
