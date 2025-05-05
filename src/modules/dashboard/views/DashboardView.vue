@@ -211,6 +211,107 @@
         </div>
       </div>
     </div>
+    
+    <!-- Gecikmiş Siparişler Detay Kartı - YENİ EKLENEN BÖLÜM -->
+    <div class="row mt-2">
+      <div class="col-12 mb-4">
+        <div class="card border-0">
+          <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">
+              <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
+              Gecikmiş Siparişler
+            </h5>
+            <div class="d-flex gap-2">
+              <button @click="refreshDelayedOrders" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-clockwise me-1"></i>
+                Yenile
+              </button>
+              <router-link to="/orders?status=delayed" class="btn btn-sm btn-outline-danger">
+                Tümünü Gör
+              </router-link>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 custom-table">
+                <thead>
+                  <tr>
+                    <th>Sipariş No</th>
+                    <th>Müşteri</th>
+                    <th>Ürün</th>
+                    <th>Gecikme</th>
+                    <th>İşlem Aşaması</th>
+                    <th>AI Önerisi</th>
+                    <th>İşlem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="isLoadingDelayed" class="text-center">
+                    <td colspan="7" class="py-4">
+                      <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                      Gecikmiş siparişler yükleniyor...
+                    </td>
+                  </tr>
+                  <tr v-else-if="!dashboardData.delayedOrdersList || dashboardData.delayedOrdersList.length === 0">
+                    <td colspan="7" class="text-center py-4">
+                      <i class="bi bi-check-circle text-success fs-4"></i>
+                      <p class="mt-2">Gecikmiş sipariş bulunmamaktadır.</p>
+                    </td>
+                  </tr>
+                  <tr v-for="(order, index) in dashboardData.delayedOrdersList" :key="index" 
+                      :class="order.delayDays > 7 ? 'bg-danger bg-opacity-10' : 'bg-warning bg-opacity-10'">
+                    <td>
+                      <router-link :to="`/orders/${order.id}`" class="fw-bold text-decoration-none">
+                        {{ order.orderNo }}
+                      </router-link>
+                    </td>
+                    <td>{{ order.customerName }}</td>
+                    <td>
+                      <span v-if="order.productType" class="badge bg-primary bg-opacity-75 me-1">
+                        {{ order.productType }}
+                      </span>
+                      <span class="small">{{ order.quantity }} adet</span>
+                    </td>
+                    <td>
+                      <span class="badge rounded-pill" 
+                            :class="order.delayDays > 7 ? 'bg-danger' : 'bg-warning'">
+                        {{ order.delayDays }} gün
+                      </span>
+                    </td>
+                    <td>
+                      <div class="d-flex align-items-center">
+                        <div class="progress flex-grow-1" style="height: 6px;">
+                          <div class="progress-bar bg-info" 
+                               :style="`width: ${order.progress}%`"></div>
+                        </div>
+                        <span class="ms-2 small">{{ order.progress }}%</span>
+                      </div>
+                      <small class="text-muted">{{ order.currentStage }}</small>
+                    </td>
+                    <td>
+                      <span class="ai-suggestion">
+                        <i class="bi bi-robot me-1"></i>
+                        {{ order.aiSuggestion }}
+                      </span>
+                    </td>
+                    <td>
+                      <div class="btn-group">
+                        <button @click="analyzeOrder(order.id)" class="btn btn-sm btn-outline-primary">
+                          <i class="bi bi-graph-up"></i>
+                        </button>
+                        <button @click="notifyCustomer(order.id, order.customerName)" class="btn btn-sm btn-outline-warning">
+                          <i class="bi bi-envelope"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -219,6 +320,8 @@ import { ref, onMounted, computed, watch, onBeforeUnmount, nextTick } from 'vue'
 import Chart from 'chart.js/auto';
 import { useAuthStore } from '@/store/auth';
 import { useDashboardData } from '@/modules/dashboard/useDashboardData';
+import { aiService } from '@/services/ai-service';
+import { useNotificationStore } from '@/store/notification';
 import AIInsightsDashboard from '@/components/ai/AIInsightsDashboard.vue';
 
 // Chart.js gereken kontroller
@@ -231,6 +334,7 @@ Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe
 
 // Dashboard servisini başlat
 const dashboardService = useDashboardData();
+const notificationStore = useNotificationStore();
 
 // References for chart instances
 const productionChart = ref(null);
@@ -242,6 +346,9 @@ let cellTypeChartInstance = null;
 
 // Chart period state
 const chartPeriod = ref('monthly');
+
+// Gecikmiş siparişler için loading durumu
+const isLoadingDelayed = ref(false);
 
 // Dashboard data - daha zengin hale getirildi
 const dashboardData = ref({
@@ -290,6 +397,42 @@ const dashboardData = ref({
       type: 'info'
     }
   ],
+  // Gecikmiş siparişler listesi - YENİ EKLENEN VERİ
+  delayedOrdersList: [
+    {
+      id: 'order-001',
+      orderNo: '#0424-1251',
+      customerName: 'AYEDAŞ',
+      productType: 'RM 36 CB',
+      quantity: 1,
+      delayDays: 12,
+      progress: 65,
+      currentStage: 'Sekonder Montajı',
+      aiSuggestion: 'Montaj ekibi takviyesi yapın'
+    },
+    {
+      id: 'order-002',
+      orderNo: '#0424-1245',
+      customerName: 'BEDAŞ',
+      productType: 'RM 36 LB',
+      quantity: 2,
+      delayDays: 5,
+      progress: 35,
+      currentStage: 'Primer Montajı',
+      aiSuggestion: 'Tedarikçi ile iletişime geçin'
+    },
+    {
+      id: 'order-007',
+      orderNo: '#0424-1218',
+      customerName: 'ENERJİSA TOROSLAR',
+      productType: 'RM 36 CB',
+      quantity: 4,
+      delayDays: 8,
+      progress: 80,
+      currentStage: 'Test Aşaması',
+      aiSuggestion: 'Test sürecini hızlandırın'
+    }
+  ],
   recentActivities: [
     {
       id: 1,
@@ -330,6 +473,65 @@ const refreshDashboard = async () => {
   } finally {
     isLoading.value = false;
   }
+};
+
+// Gecikmiş siparişleri yeniler
+const refreshDelayedOrders = async () => {
+  isLoadingDelayed.value = true;
+  
+  try {
+    await fetchDelayedOrders();
+    
+    notificationStore.add({
+      title: 'Gecikmiş Siparişler',
+      message: 'Gecikmiş siparişler listesi güncellendi.',
+      type: 'info'
+    });
+  } catch (error) {
+    console.error('Gecikmiş siparişler yüklenirken hata:', error);
+    
+    notificationStore.add({
+      title: 'Hata',
+      message: 'Gecikmiş siparişler listesi güncellenemedi.',
+      type: 'danger'
+    });
+  } finally {
+    isLoadingDelayed.value = false;
+  }
+};
+
+// Sipariş analizi yapar
+const analyzeOrder = async (orderId) => {
+  try {
+    notificationStore.add({
+      title: 'Sipariş Analizi',
+      message: 'Yapay zeka sipariş analizi başlatıldı...',
+      type: 'info'
+    });
+    
+    // Gerçek uygulamada aiService.analyzeOrder() kullanılabilir
+    setTimeout(() => {
+      notificationStore.add({
+        title: 'Sipariş Analizi',
+        message: 'Analiz tamamlandı. Detaylar için sipariş sayfasını ziyaret edin.',
+        type: 'success'
+      });
+    }, 1500);
+  } catch (error) {
+    console.error('Sipariş analizi yapılırken hata:', error);
+  }
+};
+
+// Müşteri bildirim modalını açar
+const notifyCustomer = (orderId, customerName) => {
+  notificationStore.add({
+    title: 'Müşteri Bildirimi',
+    message: `${customerName} için bildirim oluşturuluyor...`,
+    type: 'info'
+  });
+  
+  // Burada modal açma mantığı olabilir
+  // Notification modalı ekleme veya mevcut bir modalı açma işlemi burada yapılabilir
 };
 
 // Grafik periyodunu değiştirir
@@ -580,9 +782,67 @@ const fetchDashboardData = async () => {
       completedTrend: Math.random() > 0.5 ? 8.7 : -3.4
     };
     
+    // Gecikmiş siparişler listesi de güncelle
+    await fetchDelayedOrders();
+    
     console.log('Dashboard verileri başarıyla güncellendi');
   } catch (error) {
     console.error('Dashboard verileri çekilirken hata:', error);
+    throw error;
+  }
+};
+
+// Gecikmiş siparişleri çeker
+const fetchDelayedOrders = async () => {
+  try {
+    // Gerçek bir API çağrısı örneği
+    // const response = await dashboardService.getDelayedOrders();
+    // dashboardData.value.delayedOrdersList = response;
+    
+    // API çağrısı simülasyonu
+    console.log('Gecikmiş siparişler çekiliyor...');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Demo veri - Gerçek uygulamada API'den alınacak
+    dashboardData.value.delayedOrdersList = [
+      {
+        id: 'order-001',
+        orderNo: '#0424-1251',
+        customerName: 'AYEDAŞ',
+        productType: 'RM 36 CB',
+        quantity: 1,
+        delayDays: 12,
+        progress: 65,
+        currentStage: 'Sekonder Montajı',
+        aiSuggestion: 'Montaj ekibi takviyesi yapın'
+      },
+      {
+        id: 'order-002',
+        orderNo: '#0424-1245',
+        customerName: 'BEDAŞ',
+        productType: 'RM 36 LB',
+        quantity: 2,
+        delayDays: 5,
+        progress: 35,
+        currentStage: 'Primer Montajı',
+        aiSuggestion: 'Tedarikçi ile iletişime geçin'
+      },
+      {
+        id: 'order-007',
+        orderNo: '#0424-1218',
+        customerName: 'ENERJİSA TOROSLAR',
+        productType: 'RM 36 CB',
+        quantity: 4,
+        delayDays: 8,
+        progress: 80,
+        currentStage: 'Test Aşaması',
+        aiSuggestion: 'Test sürecini hızlandırın'
+      }
+    ];
+    
+    console.log('Gecikmiş siparişler başarıyla güncellendi');
+  } catch (error) {
+    console.error('Gecikmiş siparişler çekilirken hata:', error);
     throw error;
   }
 };
@@ -733,6 +993,13 @@ watch(() => document.body.classList.contains('dark-mode'), (isDark) => {
 .custom-table th {
   background-color: var(--light-color, #ecf0f1);
   font-weight: 600;
+}
+
+/* AI öneri stilleri */
+.ai-suggestion {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--ai-suggestion-color, #6c757d);
 }
 
 /* Duyarlı tasarım ayarları */

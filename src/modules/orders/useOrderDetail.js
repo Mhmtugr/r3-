@@ -221,6 +221,135 @@ export const useOrderDetail = () => {
     aiSuggestions.value = suggestions;
   };
   
+  /**
+   * AI analiz metnini formatlar
+   * @param {string} analysisText - Ham analiz metni
+   * @returns {string} - HTML biçimlendirilmiş metin
+   */
+  const formatAnalysisText = (analysisText) => {
+    if (!analysisText) return '';
+    
+    // Önemli ifadeleri vurgula
+    let formattedText = analysisText
+      .replace(/(\bkritik\b|\böncelikli\b|\bacil\b|\bgecikmeli\b|\bkırmızı\b)/gi, '<span class="danger">$1</span>')
+      .replace(/(\btamamlandı\b|\bbaşarılı\b|\btamam\b|\bzamanında\b|\byeşil\b)/gi, '<span class="success">$1</span>')
+      .replace(/(malzeme eksikliği|tedarik sorunu|stok sorunu|üretim gecikmesi)/gi, '<span class="highlight">$1</span>');
+    
+    // Paragrafları bölümle
+    formattedText = formattedText.replace(/\n/g, '<br>');
+    
+    return formattedText;
+  };
+  
+  /**
+   * AI önerisi işleme
+   * @param {string} action - Öneri işlem türü
+   */
+  const handleSuggestion = async (action) => {
+    // Öneri işlem türüne göre işlem yap
+    switch(action) {
+      case 'analyze-delay':
+        await analyzeOrderDelay();
+        break;
+      case 'notify-customer':
+        showCustomerNotificationModal();
+        break;
+      case 'review-issues':
+        scrollToSection('notes-section');
+        break;
+      case 'optimize-production':
+        await showProductionOptimizationOptions();
+        break;
+      case 'review-materials':
+        scrollToSection('materials-section');
+        break;
+      default:
+        console.warn('Bilinmeyen öneri işlemi:', action);
+    }
+  };
+  
+  /**
+   * Gecikme analizi yapma işlemi
+   */
+  const analyzeOrderDelay = async () => {
+    try {
+      isAnalyzing.value = true;
+      
+      // Gecikme analizi için aiService kullan
+      const delayAnalysis = await aiService.analyzeOrderDelay(orderId.value);
+      
+      aiAnalysis.value = delayAnalysis;
+      
+      notificationStore.add({
+        title: 'Gecikme Analizi',
+        message: 'Sipariş gecikme analizi tamamlandı.',
+        type: 'info'
+      });
+    } catch (error) {
+      console.error('Gecikme analizi yapılırken hata:', error);
+      notificationStore.add({
+        title: 'Analiz Hatası',
+        message: 'Gecikme analizi yapılamadı.',
+        type: 'danger'
+      });
+    } finally {
+      isAnalyzing.value = false;
+    }
+  };
+  
+  /**
+   * Müşteri bildirim modalını gösterme
+   */
+  const showCustomerNotificationModal = () => {
+    // Bu fonksiyon daha sonra implemente edilecek
+    // Modal gösterme işlemi burada yapılacak
+    notificationStore.add({
+      title: 'Bildirim',
+      message: 'Müşteri bildirim özelliği yakında eklenecek.',
+      type: 'info'
+    });
+  };
+  
+  /**
+   * Sayfada belirli bir bölüme kaydırma
+   * @param {string} sectionId - Hedef bölüm ID'si
+   */
+  const scrollToSection = (sectionId) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+  
+  /**
+   * Üretim optimizasyon seçeneklerini gösterme
+   */
+  const showProductionOptimizationOptions = async () => {
+    try {
+      isAnalyzing.value = true;
+      
+      // Optimizasyon analizi için aiService kullan
+      const optimizationOptions = await aiService.getProductionOptimizationOptions(orderId.value);
+      
+      aiAnalysis.value = optimizationOptions;
+      
+      notificationStore.add({
+        title: 'Üretim Optimizasyonu',
+        message: 'Optimizasyon önerileri hazırlandı.',
+        type: 'info'
+      });
+    } catch (error) {
+      console.error('Optimizasyon önerileri alınırken hata:', error);
+      notificationStore.add({
+        title: 'Öneri Hatası',
+        message: 'Optimizasyon önerileri alınamadı.',
+        type: 'danger'
+      });
+    } finally {
+      isAnalyzing.value = false;
+    }
+  };
+  
   const addNote = async () => {
     if (!newNote.value.text.trim() || noteLoading.value) return;
     
@@ -332,6 +461,7 @@ export const useOrderDetail = () => {
   return {
     order,
     isLoading,
+    isEditing: ref(false), // Düzenleme modu için state ekle
     isAnalyzing,
     aiAnalysis,
     aiSuggestions,
@@ -350,11 +480,44 @@ export const useOrderDetail = () => {
     orderStatusText,
     hasCriticalNotes,
     hasWarningNotes,
+    orderProgress: computed(() => order.value?.progress || 0),
+    orderCellCount: computed(() => order.value?.cells?.length || 0),
     loadOrder,
     performAIAnalysis,
+    formatAnalysisText,
+    handleSuggestion,
     addNote,
     resolveNote,
     updateOrderStatus,
-    goBack
+    goBack,
+    
+    // Sipariş işlemleri
+    startEditing: () => { /* Düzenleme işlemi */ },
+    cancelEditing: () => { /* İptal işlemi */ },
+    saveChanges: async () => { /* Kaydetme işlemi */ },
+    deleteOrder: async () => { /* Silme işlemi */ },
+    cloneOrder: async () => { /* Kopyalama işlemi */ },
+    
+    // Yardımcı fonksiyonlar
+    getStatusText: (status) => {
+      const statusMap = {
+        'planned': 'Planlandı',
+        'in_progress': 'Üretimde',
+        'delayed': 'Gecikmiş', 
+        'completed': 'Tamamlandı',
+        'canceled': 'İptal Edildi'
+      };
+      return statusMap[status] || status;
+    },
+    getStatusBadgeClass: (status) => {
+      const classMap = {
+        'planned': 'bg-info',
+        'in_progress': 'bg-primary',
+        'delayed': 'bg-danger',
+        'completed': 'bg-success',
+        'canceled': 'bg-secondary'
+      };
+      return classMap[status] || 'bg-secondary';
+    }
   };
 };

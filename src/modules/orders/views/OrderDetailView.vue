@@ -89,7 +89,64 @@
         </div>
       </div>
 
-      <!-- ... Diğer bileşen içeriği ... -->
+      <!-- AI Analizi ve Öneriler -->
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <i class="bi bi-robot me-2"></i>
+            Yapay Zeka Analizi
+          </h5>
+          <button 
+            class="btn btn-sm" 
+            :class="isAnalyzing ? 'btn-secondary disabled' : 'btn-primary'" 
+            @click="performAIAnalysis"
+            :disabled="isAnalyzing">
+            <span v-if="isAnalyzing" class="spinner-border spinner-border-sm me-1" role="status"></span>
+            {{ isAnalyzing ? 'Analiz yapılıyor...' : 'Analizi Yenile' }}
+          </button>
+        </div>
+        <div class="card-body">
+          <div v-if="isAnalyzing" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Analiz yapılıyor...</span>
+            </div>
+            <p class="mt-2 text-muted">Siparişiniz yapay zeka tarafından analiz ediliyor...</p>
+          </div>
+          
+          <div v-else-if="!aiAnalysis && !aiSuggestions.length" class="text-center py-3">
+            <i class="bi bi-lightbulb fs-1 text-warning"></i>
+            <p class="mt-2">Henüz bir analiz yapılmamış. "Analizi Yenile" butonuna tıklayarak sipariş hakkında yapay zeka değerlendirmesi alabilirsiniz.</p>
+          </div>
+          
+          <div v-else>
+            <!-- Analiz Sonuçları -->
+            <div v-if="aiAnalysis" class="mb-4">
+              <h6>Sipariş Değerlendirmesi:</h6>
+              <p class="analysis-text" v-html="formatAnalysisText(aiAnalysis)"></p>
+            </div>
+            
+            <!-- Öneriler -->
+            <div v-if="aiSuggestions.length" class="mt-4">
+              <h6>Yapay Zeka Önerileri:</h6>
+              <div class="row g-3 mt-1">
+                <div v-for="suggestion in aiSuggestions" :key="suggestion.action" class="col-md-6 col-lg-4">
+                  <div class="card h-100 suggestion-card">
+                    <div class="card-body">
+                      <p class="card-text">{{ suggestion.text }}</p>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                      <button class="btn btn-sm btn-outline-primary" @click="handleSuggestion(suggestion.action)">
+                        <i class="bi bi-lightning me-1"></i>
+                        Uygula
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       
       <!-- Düzenleme Formu -->
       <div v-if="isEditing" class="card mb-4">
@@ -152,19 +209,25 @@ const {
   order,
   isLoading,
   isEditing,
+  isAnalyzing,
+  aiAnalysis,
+  aiSuggestions,
   productionStages,
   documents,
   editForm,
   orderProgress,
   orderCellCount,
   loadOrderDetail,
+  performAIAnalysis,
   startEditing,
   cancelEditing,
   saveChanges,
   deleteOrder,
   cloneOrder,
   getStatusText,
-  getStatusBadgeClass
+  getStatusBadgeClass,
+  formatAnalysisText,
+  handleSuggestion
 } = useOrderDetail();
 
 // Modal state
@@ -251,5 +314,36 @@ onMounted(() => {
 <style scoped>
 .badge {
   font-size: 0.9rem;
+}
+
+.analysis-text {
+  line-height: 1.5;
+}
+
+.analysis-text .highlight {
+  background-color: rgba(var(--bs-warning-rgb), 0.2);
+  padding: 0 0.2rem;
+  border-radius: 0.2rem;
+}
+
+.analysis-text .success {
+  color: var(--bs-success);
+  font-weight: 500;
+}
+
+.analysis-text .danger {
+  color: var(--bs-danger);
+  font-weight: 500;
+}
+
+.suggestion-card {
+  transition: all 0.2s ease-in-out;
+  border: 1px solid rgba(0,0,0,0.125);
+}
+
+.suggestion-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  border-color: var(--bs-primary);
 }
 </style>

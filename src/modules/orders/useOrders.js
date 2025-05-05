@@ -5,6 +5,7 @@
 
 import { ref, reactive, computed, watch } from 'vue';
 import { useToast } from '@/composables/useToast';
+import { aiService } from '@/services/ai-service';
 
 export function useOrders() {
   // Dependencies
@@ -25,7 +26,8 @@ export function useOrders() {
       end: ''
     },
     priorityLevel: '',
-    customerName: ''
+    customerName: '',
+    riskLevel: '' // Yeni eklenen risk seviyesi filtresi
   });
   
   const sorting = reactive({
@@ -39,17 +41,48 @@ export function useOrders() {
     totalPages: computed(() => Math.ceil(filteredOrders.value.length / pagination.itemsPerPage))
   });
   
+  // AI filtreleme state'i
+  const isAiFiltering = ref(false);
+  
   // Computed properties
   const filteredOrders = computed(() => {
     let result = [...orders.value];
     
-    // Arama sorgusu filtresi
+    // Arama sorgusu filtresi - Doğal dil araması desteği
     if (filters.searchQuery) {
       const query = filters.searchQuery.toLowerCase();
-      result = result.filter(order => 
-        order.orderNo?.toLowerCase().includes(query) || 
-        order.customerInfo?.name?.toLowerCase().includes(query)
-      );
+      
+      // Doğal dil araması için basit anahtar kelime kontrolü
+      if (query.includes('geciken') || query.includes('gecikmiş')) {
+        result = result.filter(order => order.status === 'delayed');
+      } else if (query.includes('tamamlan') || query.includes('biten')) {
+        result = result.filter(order => order.status === 'completed');
+      } else if (query.includes('üretimde') || query.includes('devam eden')) {
+        result = result.filter(order => order.status === 'in_progress');
+      } else if (query.includes('yüksek öncelik') || query.includes('acil')) {
+        result = result.filter(order => order.priority === 'high');
+      } else if (query.includes('risk')) {
+        result = result.filter(order => order.riskLevel === 'high');
+      } else {
+        // Geleneksel arama (terim bazlı)
+        result = result.filter(order => 
+          order.orderNo?.toLowerCase().includes(query) || 
+          order.customerInfo?.name?.toLowerCase().includes(query) ||
+          (order.cells && order.cells.some(cell => 
+            cell.productTypeCode?.toLowerCase().includes(query)
+          ))
+        );
+      }
+      
+      // Müşteri ismi özel kontrolü
+      // Örn: "AYEDAŞ'ın siparişleri" gibi aramalar için
+      const customerMatch = query.match(/([a-zA-ZşŞıİçÇöÖüÜğĞ]+)'[ıiuünña]n/i);
+      if (customerMatch) {
+        const customerName = customerMatch[1].toUpperCase();
+        result = result.filter(order => 
+          order.customerInfo?.name?.toUpperCase().includes(customerName)
+        );
+      }
     }
     
     // Hücre tipi filtresi
@@ -98,6 +131,11 @@ export function useOrders() {
       result = result.filter(order => 
         order.customerInfo?.name?.toLowerCase().includes(filters.customerName.toLowerCase())
       );
+    }
+    
+    // Risk seviyesi filtresi
+    if (filters.riskLevel) {
+      result = result.filter(order => order.riskLevel === filters.riskLevel);
     }
     
     // Sıralama
@@ -197,12 +235,18 @@ export function useOrders() {
         orders.value = result;
         totalOrderCount.value = result.length;
         
+        // Risk seviyelerini hesapla
+        await calculateRiskLevels(result);
+        
         return result;
       } else {
         // Demo mod
         const demoOrders = getDemoOrders();
         orders.value = demoOrders;
         totalOrderCount.value = demoOrders.length;
+        
+        // Demo risk seviyeleri
+        await calculateRiskLevels(demoOrders);
         
         return demoOrders;
       }
@@ -218,6 +262,109 @@ export function useOrders() {
       return demoOrders;
     } finally {
       isLoading.value = false;
+    }
+  }
+  
+  /**
+   * Siparişlerin risk seviyelerini hesaplar
+   * @param {Array} orderList - Sipariş listesi
+   * @returns {Promise<void>}
+   */
+  async function calculateRiskLevels(orderList) {
+    // Gerçek uygulamada, AI servisiyle risk analizi yapılır
+    // const riskAnalysis = await aiService.analyzeOrderRisks(orderList);
+    
+    // Demo için:
+    for (const order of orderList) {
+      // Gecikmiş siparişler otomatik olarak yüksek risk
+      if (order.status === 'delayed') {
+        order.riskLevel = 'high';
+      } 
+      // İlerlemesi düşük olan devam eden siparişler orta risk
+      else if (order.status === 'in_progress' && order.progress < 40) {
+        order.riskLevel = 'medium';
+      }
+      // Yüksek öncelikli ama henüz başlamayan siparişler orta risk
+      else if (order.status === 'planned' && order.priority === 'high') {
+        order.riskLevel = 'medium';
+      }
+      // Tamamlanmış siparişler düşük risk
+      else if (order.status === 'completed') {
+        order.riskLevel = 'low';
+      }
+      // Diğer siparişler için rastgele risk ataması (demo amaçlı)
+      else {
+        const risks = ['low', 'medium', 'low']; // Düşük riskin daha olası olması için
+        const randomIndex = Math.floor(Math.random() * risks.length);
+        order.riskLevel = risks[randomIndex];
+      }
+    }
+  }
+  
+  /**
+   * Yapay zeka ile filtreleri uygular
+   * Doğal dil ile ifade edilen sorgu metinlerini filtrelere dönüştürür
+   * @returns {Promise<void>}
+   */
+  async function applyAIFilters() {
+    if (!filters.searchQuery) {
+      showToast('Lütfen önce bir arama sorgusu girin', 'info');
+      return;
+    }
+    
+    try {
+      isAiFiltering.value = true;
+      
+      // Gerçek uygulamada: AI servisine sorguyu gönder ve filtreleri al
+      // const aiFilters = await aiService.parseFilterQuery(filters.searchQuery);
+      
+      // Demo için basit sorgu analizi:
+      const query = filters.searchQuery.toLowerCase();
+      
+      // Filtreleri temizle
+      clearFilters();
+      
+      // Demo filtre atamaları
+      if (query.includes('gecik')) {
+        filters.status = 'delayed';
+      }
+      
+      if (query.includes('yüksek öncelik') || query.includes('acil')) {
+        filters.priorityLevel = 'high';
+      }
+      
+      if (query.includes('risk')) {
+        filters.riskLevel = 'high';
+      }
+      
+      // Müşteri ismi kontrolü
+      const customerNames = customerList.value;
+      for (const customerName of customerNames) {
+        if (query.includes(customerName.toLowerCase())) {
+          filters.customerName = customerName;
+          break;
+        }
+      }
+      
+      // Hücre tipi kontrolü
+      const cellTypes = cellTypeList.value;
+      for (const cellType of cellTypes) {
+        if (query.includes(cellType.toLowerCase())) {
+          filters.cellType = cellType;
+          break;
+        }
+      }
+      
+      showToast('AI filtreleri uygulandı', 'success');
+      
+      // Arama sorgusunu temizle - artık filtrelere dönüştürüldü
+      filters.searchQuery = '';
+      
+    } catch (error) {
+      console.error('AI filtresi uygulanırken hata oluştu:', error);
+      showToast('AI filtresi uygulanamadı: ' + error.message, 'error');
+    } finally {
+      isAiFiltering.value = false;
     }
   }
   
@@ -276,7 +423,8 @@ export function useOrders() {
         end: ''
       },
       priorityLevel: '',
-      customerName: ''
+      customerName: '',
+      riskLevel: ''
     });
   }
   
@@ -440,6 +588,58 @@ export function useOrders() {
         priority: 'low',
         createdAt: new Date('2024-03-15'),
         updatedAt: new Date('2024-03-15')
+      },
+      {
+        id: 'order-006',
+        orderNo: '#0424-1219',
+        orderDate: '2024-03-14',
+        customerInfo: {
+          name: 'AYEDAŞ',
+          documentNo: 'PO-2024-A157',
+          contactPerson: 'Ahmet Yılmaz'
+        },
+        cells: [
+          {
+            productTypeCode: 'RM 36 CB',
+            technicalValues: '36kV 630A 16kA Kesicili ÇIKIŞ Hücresi',
+            quantity: 2,
+            deliveryDate: '2024-10-20'
+          },
+          {
+            productTypeCode: 'RM 36 FL',
+            technicalValues: '36kV 200A 16kA Sigortalı Yük Ayırıcılı TR.Koruma Hücresi',
+            quantity: 1,
+            deliveryDate: '2024-10-20'
+          }
+        ],
+        status: 'in_progress',
+        progress: 75,
+        priority: 'high',
+        createdAt: new Date('2024-03-14'),
+        updatedAt: new Date('2024-04-20')
+      },
+      {
+        id: 'order-007',
+        orderNo: '#0424-1215',
+        orderDate: '2024-03-10',
+        customerInfo: {
+          name: 'ÇORUH EDAŞ',
+          documentNo: 'PO-2024-C123',
+          contactPerson: 'Selin Çelik'
+        },
+        cells: [
+          {
+            productTypeCode: 'RM 36 LB',
+            technicalValues: '36kV 630A 16kA Yük Ayırıcılı Giriş Hücresi',
+            quantity: 3,
+            deliveryDate: '2024-09-30'
+          }
+        ],
+        status: 'delayed',
+        progress: 45,
+        priority: 'medium',
+        createdAt: new Date('2024-03-10'),
+        updatedAt: new Date('2024-04-18')
       }
     ];
   }
@@ -452,7 +652,8 @@ export function useOrders() {
     () => filters.dateRange.start, 
     () => filters.dateRange.end,
     () => filters.priorityLevel,
-    () => filters.customerName
+    () => filters.customerName,
+    () => filters.riskLevel
   ], () => {
     pagination.currentPage = 1;
   });
@@ -466,6 +667,7 @@ export function useOrders() {
     filters,
     sorting,
     pagination,
+    isAiFiltering,
     
     // Computed
     filteredOrders,
@@ -481,6 +683,7 @@ export function useOrders() {
     sortBy,
     clearFilters,
     getStatusText,
-    getStatusBadgeClass
+    getStatusBadgeClass,
+    applyAIFilters
   };
 }
