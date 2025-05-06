@@ -70,7 +70,7 @@ const routes = [
   {
     path: '/orders',
     name: 'Orders',
-    component: () => import('@/modules/orders/views/OrdersList.vue'),
+    component: () => import('@/modules/orders/views/OrderListView.vue'),
     meta: { 
       layout: 'default', 
       requiresAuth: true,
@@ -81,7 +81,7 @@ const routes = [
   {
     path: '/orders/:id',
     name: 'OrderDetail',
-    component: () => import('@/modules/orders/views/OrderDetail.vue'),
+    component: () => import('@/modules/orders/views/OrderDetailView.vue'),
     meta: { 
       layout: 'default', 
       requiresAuth: true,
