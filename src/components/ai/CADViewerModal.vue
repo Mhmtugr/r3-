@@ -1,492 +1,268 @@
 <template>
   <div class="cad-viewer-modal">
-    <div class="cad-viewer-container">
-      <div class="cad-viewer-header">
-        <h5 class="m-0">
-          <i class="bi bi-box me-2"></i>
-          {{ modelName }}
-        </h5>
-        <div class="cad-viewer-actions">
-          <button class="btn btn-sm btn-outline-info me-2" @click="captureScreenshot">
-            <i class="bi bi-camera"></i>
-            <span class="ms-1 d-none d-md-inline">Ekran Görüntüsü</span>
-          </button>
-          <button class="btn btn-sm btn-outline-info me-2" @click="toggleMeasurements">
-            <i class="bi" :class="showMeasurements ? 'bi-rulers' : 'bi-ruler'"></i>
-            <span class="ms-1 d-none d-md-inline">Ölçüler</span>
-          </button>
-          <button class="btn btn-sm btn-outline-info me-2" @click="toggleExplode">
-            <i class="bi" :class="isExploded ? 'bi-box2-fill' : 'bi-boxes'"></i>
-            <span class="ms-1 d-none d-md-inline">{{ isExploded ? 'Birleştir' : 'Parçala' }}</span>
-          </button>
-          <!-- AR/VR Modu Tuşları -->
-          <button v-if="isARSupported" class="btn btn-sm btn-outline-success me-2" @click="startARView">
-            <i class="bi bi-phone-fill"></i>
-            <span class="ms-1 d-none d-md-inline">AR</span>
-          </button>
-          <button class="btn btn-sm btn-outline-primary me-2" @click="startVRView">
-            <i class="bi bi-badge-vr"></i>
-            <span class="ms-1 d-none d-md-inline">VR</span>
-          </button>
-          <button class="btn btn-sm btn-danger" @click="$emit('close')">
-            <i class="bi bi-x-lg"></i>
-          </button>
-        </div>
-      </div>
-      
-      <div class="cad-viewer-content">
-        <div v-if="isLoading" class="cad-viewer-loading">
-          <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Yükleniyor...</span>
+    <div class="modal fade" :id="modalId" tabindex="-1" aria-labelledby="cadViewerLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title" id="cadViewerLabel">
+              <i class="bi bi-file-earmark-ruled me-2"></i>
+              {{ title || 'Teknik Çizim Görüntüleyici' }}
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Kapat"></button>
           </div>
-          <span class="mt-2">3D Model yükleniyor...</span>
-        </div>
-        
-        <div v-if="!isLoading && error" class="cad-viewer-error">
-          <i class="bi bi-exclamation-triangle text-danger fs-3"></i>
-          <span class="mt-2">{{ error }}</span>
-        </div>
-        
-        <!-- AR/VR Modu Kullanıcı Arayüzü -->
-        <div v-if="arMode" class="ar-instructions">
-          <div class="alert alert-info">
-            <i class="bi bi-info-circle-fill me-2"></i>
-            Cihazınızı etrafta hareket ettirerek modeli 3D ortamınıza yerleştirin.
-            <button class="btn btn-sm btn-secondary float-end" @click="exitARMode">
-              <i class="bi bi-x-circle"></i> Çıkış
-            </button>
-          </div>
-        </div>
-        
-        <div v-if="vrMode" class="vr-instructions">
-          <div class="alert alert-info">
-            <i class="bi bi-info-circle-fill me-2"></i>
-            VR gözlüğünüzü takın ve başınızı hareket ettirerek modeli inceleyin.
-            <button class="btn btn-sm btn-secondary float-end" @click="exitVRMode">
-              <i class="bi bi-x-circle"></i> Çıkış
-            </button>
-          </div>
-        </div>
-        
-        <div class="cad-canvas-container" v-show="!isLoading && !error">
-          <canvas ref="canvasElement" class="cad-canvas"></canvas>
-        </div>
-      </div>
-      
-      <div class="cad-viewer-footer">
-        <div class="cad-viewer-tabs">
-          <div class="nav nav-tabs" role="tablist">
-            <button 
-              class="nav-link" 
-              :class="{ active: activeTab === 'info' }" 
-              @click="activeTab = 'info'"
-              id="info-tab"
-            >
-              <i class="bi bi-info-circle me-1"></i> Bilgi
-            </button>
-            <button 
-              class="nav-link" 
-              :class="{ active: activeTab === 'components' }" 
-              @click="activeTab = 'components'"
-              id="components-tab"
-            >
-              <i class="bi bi-diagram-3 me-1"></i> Bileşenler
-            </button>
-            <button 
-              class="nav-link" 
-              :class="{ active: activeTab === 'measurements' }" 
-              @click="activeTab = 'measurements'"
-              id="measurements-tab"
-            >
-              <i class="bi bi-rulers me-1"></i> Ölçümler
-            </button>
-            <button 
-              class="nav-link" 
-              :class="{ active: activeTab === 'ar_options' }" 
-              @click="activeTab = 'ar_options'"
-              id="ar_options-tab"
-            >
-              <i class="bi bi-phone-fill me-1"></i> AR Seçenekleri
-            </button>
-            <button 
-              class="nav-link" 
-              :class="{ active: activeTab === 'analysis' }" 
-              @click="activeTab = 'analysis'"
-              id="analysis-tab"
-            >
-              <i class="bi bi-graph-up me-1"></i> Analiz
-            </button>
-          </div>
-        </div>
-        
-        <div class="cad-viewer-tab-content">
-          <div class="tab-pane fade show" :class="{ active: activeTab === 'info' }" id="info-content">
-            <div class="row" v-if="modelInfo">
-              <div class="col-md-6">
-                <table class="table table-sm">
-                  <tbody>
-                    <tr>
-                      <th>Model Adı</th>
-                      <td>{{ modelInfo.name }}</td>
-                    </tr>
-                    <tr>
-                      <th>Versiyon</th>
-                      <td>{{ modelInfo.version }}</td>
-                    </tr>
-                    <tr>
-                      <th>Format</th>
-                      <td>{{ modelInfo.format }}</td>
-                    </tr>
-                    <tr>
-                      <th>Son Güncelleme</th>
-                      <td>{{ modelInfo.lastUpdated }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="col-md-6">
-                <div class="mb-2">
-                  <strong>Kullanım Talimatları:</strong>
-                </div>
-                <ul class="list-unstyled small">
-                  <li><i class="bi bi-mouse me-1"></i> Sol tıklama ile modeli döndür</li>
-                  <li><i class="bi bi-arrows-move me-1"></i> Sağ tıklama ile modeli kaydır</li>
-                  <li><i class="bi bi-mouse-fill me-1"></i> Tekerlek ile yakınlaştır/uzaklaştır</li>
-                </ul>
+          <div class="modal-body p-0">
+            <!-- Yükleme göstergesi -->
+            <div v-if="isLoading" class="loading-overlay d-flex align-items-center justify-content-center">
+              <div class="text-center">
+                <div class="spinner-border text-primary mb-3" role="status"></div>
+                <p>{{ loadingMessage || 'Dosya yükleniyor...' }}</p>
               </div>
             </div>
-            <div v-else class="text-center py-4">
-              <i class="bi bi-exclamation-triangle text-warning me-2"></i>
-              Model bilgisi bulunamadı
-            </div>
-          </div>
-          
-          <div class="tab-pane fade show" :class="{ active: activeTab === 'components' }" id="components-content">
-            <div v-if="modelInfo && modelInfo.components && modelInfo.components.length > 0">
-              <div class="table-responsive">
-                <table class="table table-sm table-hover">
-                  <thead>
-                    <tr>
-                      <th>Parça</th>
-                      <th>Malzeme</th>
-                      <th>Ağırlık</th>
-                      <th>Görünürlük</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(component, index) in modelInfo.components" :key="index">
-                      <td>{{ component.name }}</td>
-                      <td>{{ component.material }}</td>
-                      <td>{{ component.weight }}</td>
-                      <td>
-                        <div class="form-check form-switch">
-                          <input class="form-check-input" type="checkbox" 
-                                :id="`component-${index}`" 
-                                v-model="componentVisibility[index]"
-                                @change="toggleComponentVisibility(index)">
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div v-else class="text-center py-4">
-              <i class="bi bi-exclamation-triangle text-warning me-2"></i>
-              Bileşen bilgisi bulunamadı
-            </div>
-          </div>
-          
-          <div class="tab-pane fade show" :class="{ active: activeTab === 'measurements' }" id="measurements-content">
-            <div v-if="modelMeasurements && modelMeasurements.length > 0">
-              <div class="table-responsive">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Ölçü</th>
-                      <th>Değer</th>
-                      <th>Birim</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(measurement, index) in modelMeasurements" :key="index">
-                      <td>{{ measurement.name }}</td>
-                      <td>{{ measurement.value }}</td>
-                      <td>{{ measurement.unit || 'mm' }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div v-else-if="measurementsLoading">
-              <div class="text-center py-4">
-                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
-                  <span class="visually-hidden">Yükleniyor...</span>
-                </div>
-                Ölçümler analiz ediliyor...
-              </div>
-            </div>
-            <div v-else class="text-center py-4">
-              <i class="bi bi-exclamation-triangle text-warning me-2"></i>
-              Ölçüm bilgisi bulunamadı
-            </div>
-          </div>
-          
-          <!-- AR Seçenekleri Sekmesi -->
-          <div class="tab-pane fade show" :class="{ active: activeTab === 'ar_options' }" id="ar_options-content">
-            <div class="row g-3">
-              <div class="col-12">
-                <div class="form-text mb-3">
-                  AR/VR deneyiminizi özelleştirmek için aşağıdaki seçenekleri kullanabilirsiniz.
-                </div>
-              </div>
-              
-              <div class="col-md-6">
-                <label class="form-label" for="ar-scale">Model Ölçeği</label>
-                <div class="d-flex gap-2 align-items-center">
-                  <input
-                    type="range"
-                    class="form-range w-75"
-                    id="ar-scale"
-                    min="0.1"
-                    max="2"
-                    step="0.1"
-                    v-model.number="arOptions.scale"
-                  >
-                  <span class="badge bg-secondary">{{ arOptions.scale }}x</span>
-                </div>
-              </div>
-              
-              <div class="col-md-6">
-                <label class="form-label" for="ar-environment">Ortam Aydınlatması</label>
-                <select id="ar-environment" class="form-select" v-model="arOptions.environment">
-                  <option value="neutral">Nötr</option>
-                  <option value="daylight">Gün Işığı</option>
-                  <option value="sunset">Gün Batımı</option>
-                  <option value="night">Gece</option>
-                  <option value="studio">Stüdyo</option>
-                </select>
-              </div>
-              
-              <div class="col-md-6">
-                <label class="form-label" for="ar-shadow">Gölge Kalitesi</label>
-                <select id="ar-shadow" class="form-select" v-model="arOptions.shadowQuality">
-                  <option value="off">Kapalı</option>
-                  <option value="low">Düşük</option>
-                  <option value="medium">Orta</option>
-                  <option value="high">Yüksek</option>
-                </select>
-              </div>
-              
-              <div class="col-md-6">
-                <div class="form-check form-switch mt-4">
-                  <input class="form-check-input" type="checkbox" id="ar-annotations" v-model="arOptions.showAnnotations">
-                  <label class="form-check-label" for="ar-annotations">Açıklamaları Göster</label>
-                </div>
-              </div>
-              
-              <div class="col-12">
-                <div class="mt-3">
-                  <button class="btn btn-sm btn-outline-primary" @click="exportARModel">
-                    <i class="bi bi-download me-1"></i>
-                    AR/VR Modeli İndir
-                  </button>
-                  <div class="form-text mt-1">
-                    3D modeli AR uygulamalarında kullanmak için indirebilirsiniz.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- Makine Öğrenmesi Analiz Sonuçları -->
-          <div class="tab-pane fade show" :class="{ active: activeTab === 'analysis' }" id="analysis-content">
-            <div v-if="analyzeLoading" class="text-center py-4">
-              <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
-                <span class="visually-hidden">Yükleniyor...</span>
-              </div>
-              <span>Model analiz ediliyor...</span>
-              <div class="progress mt-2">
-                <div 
-                  class="progress-bar progress-bar-striped progress-bar-animated" 
-                  :style="{width: `${analysisProgress}%`}" 
-                  role="progressbar" 
-                  :aria-valuenow="analysisProgress" 
-                  aria-valuemin="0" 
-                  aria-valuemax="100"></div>
-              </div>
-            </div>
-            
-            <div v-else-if="analysisResults" class="analysis-results">
-              <div class="row mb-3">
-                <div class="col-md-6">
-                  <div class="card h-100">
-                    <div class="card-header">
-                      <h6 class="m-0">Malzeme Analizi</h6>
-                    </div>
-                    <div class="card-body">
-                      <table class="table table-sm">
-                        <thead>
-                          <tr>
-                            <th>Malzeme</th>
-                            <th>Miktar</th>
-                            <th>Maliyet</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="(material, idx) in analysisResults.materials" :key="idx">
-                            <td>{{ material.name }}</td>
-                            <td>{{ material.quantity }} {{ material.unit }}</td>
-                            <td>{{ material.estimatedCost }} ₺</td>
-                          </tr>
-                        </tbody>
-                        <tfoot>
-                          <tr>
-                            <th colspan="2">Toplam Maliyet</th>
-                            <th>{{ analysisResults.totalCost }} ₺</th>
-                          </tr>
-                        </tfoot>
-                      </table>
+            <!-- Çizim ve analiz sonuçları ekranı -->
+            <div class="cad-viewer-container" :class="{ 'with-sidebar': showAnalysisPane }">
+              <div class="cad-viewer-sidebar" v-if="showAnalysisPane">
+                <div class="analysis-controls mb-3">
+                  <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-2">
+                    <span>Analiz İşlemleri</span>
+                  </h6>
+                  <div class="px-3">
+                    <button @click="analyzeDrawing" class="btn btn-sm btn-primary mb-2 w-100" :disabled="isLoading || !drawingLoaded">
+                      <i class="bi bi-search me-2"></i>Çizimi Analiz Et
+                    </button>
+                    <div class="list-group list-group-flush">
+                      <button @click="extractBOM" class="list-group-item list-group-item-action" :disabled="isLoading || !drawingLoaded">
+                        <i class="bi bi-list-ul me-2"></i>Malzeme Listesi Çıkar
+                      </button>
+                      <button @click="detectErrors" class="list-group-item list-group-item-action" :disabled="isLoading || !drawingLoaded">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Hataları Tespit Et
+                      </button>
+                      <button @click="extractText" class="list-group-item list-group-item-action" :disabled="isLoading || !drawingLoaded">
+                        <i class="bi bi-type me-2"></i>Metin Çıkar
+                      </button>
+                      <button v-if="canGenerate3D" @click="generate3DPreview" class="list-group-item list-group-item-action" :disabled="isLoading || !drawingLoaded">
+                        <i class="bi bi-badge-3d me-2"></i>3D Önizleme Oluştur
+                      </button>
                     </div>
                   </div>
                 </div>
                 
-                <div class="col-md-6">
-                  <div class="card h-100">
-                    <div class="card-header">
-                      <h6 class="m-0">Üretim Analizi</h6>
-                    </div>
-                    <div class="card-body">
-                      <table class="table table-sm">
-                        <tbody>
-                          <tr>
-                            <th>Tahmini Üretim Süresi</th>
-                            <td>{{ analysisResults.production.estimatedTime }} saat</td>
-                          </tr>
-                          <tr>
-                            <th>Zorluk Seviyesi</th>
-                            <td>
-                              <div class="d-flex align-items-center">
-                                <div class="progress flex-grow-1" style="height: 8px;">
-                                  <div 
-                                    class="progress-bar" 
-                                    :class="difficultyClass" 
-                                    role="progressbar" 
-                                    :style="{width: `${analysisResults.production.difficulty * 20}%`}" 
-                                    :aria-valuenow="analysisResults.production.difficulty" 
-                                    aria-valuemin="0" 
-                                    aria-valuemax="5"></div>
-                                </div>
-                                <span class="ms-2">{{ analysisResults.production.difficulty }}/5</span>
-                              </div>
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>Özelleştirme Potansiyeli</th>
-                            <td>
-                              <div class="stars">
-                                <i v-for="i in 5" :key="i" 
-                                   class="bi" 
-                                   :class="i <= analysisResults.production.customizationPotential ? 'bi-star-fill text-warning' : 'bi-star'"></i>
-                              </div>
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>Gerekli Ekipman</th>
-                            <td>
-                              <span v-for="(equipment, idx) in analysisResults.production.requiredEquipment" 
-                                    :key="idx" 
-                                    class="badge bg-secondary me-1 mb-1">{{ equipment }}</span>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                <div v-if="analysisResult" class="analysis-results">
+                  <!-- Analiz sonuçları başlık -->
+                  <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-2">
+                    <span>Analiz Sonuçları</span>
+                    <span class="badge bg-success rounded-pill">{{ analysisConfidence }}%</span>
+                  </h6>
+
+                  <!-- Dosya bilgileri -->
+                  <div class="px-3 mb-3">
+                    <div class="card">
+                      <div class="card-body p-2">
+                        <h6 class="card-title mb-2">Dosya Bilgileri</h6>
+                        <div class="small">
+                          <div><strong>Dosya türü:</strong> {{ fileType }}</div>
+                          <div><strong>Analiz zamanı:</strong> {{ analysisTime }}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-              
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="card h-100">
-                    <div class="card-header">
-                      <h6 class="m-0">Kalite Analizi</h6>
-                    </div>
-                    <div class="card-body">
-                      <div class="mb-3">
-                        <strong>Kritik Bileşenler:</strong>
-                        <ul class="list-group mt-2">
-                          <li v-for="(component, idx) in analysisResults.quality.criticalComponents" 
-                              :key="idx" 
-                              class="list-group-item d-flex justify-content-between align-items-center py-2">
-                            {{ component.name }}
-                            <span class="badge bg-primary rounded-pill">{{ component.impactScore }}/10</span>
-                          </li>
-                        </ul>
-                      </div>
-                      <div>
-                        <strong>Önerilen Test Yöntemleri:</strong>
-                        <ul class="list-unstyled mt-2">
-                          <li v-for="(test, idx) in analysisResults.quality.recommendedTests" 
-                              :key="idx" 
-                              class="mb-1">
-                            <i class="bi bi-check-circle-fill text-success me-1"></i> {{ test }}
+
+                  <!-- Boyutlar -->
+                  <div v-if="dimensions && dimensions.length" class="px-3 mb-3">
+                    <div class="card">
+                      <div class="card-body p-2">
+                        <h6 class="card-title mb-2">Boyutlar</h6>
+                        <ul class="list-unstyled small mb-0">
+                          <li v-for="(dim, index) in dimensions" :key="index">
+                            <strong>{{ dim.type }}:</strong> {{ dim.value }} {{ dim.unit }}
                           </li>
                         </ul>
                       </div>
                     </div>
                   </div>
-                </div>
-                
-                <div class="col-md-6">
-                  <div class="card h-100">
-                    <div class="card-header">
-                      <h6 class="m-0">Algoritma Sonuçları</h6>
-                    </div>
-                    <div class="card-body">
-                      <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                          <strong>Model Doğruluk Oranı:</strong>
-                          <span class="badge bg-success">{{ (analysisResults.algorithm.accuracy * 100).toFixed(2) }}%</span>
-                        </div>
-                        <div class="progress" style="height: 10px;">
-                          <div class="progress-bar bg-success" 
-                               role="progressbar" 
-                               :style="{width: `${analysisResults.algorithm.accuracy * 100}%`}" 
-                               :aria-valuenow="analysisResults.algorithm.accuracy * 100" 
-                               aria-valuemin="0" 
-                               aria-valuemax="100"></div>
-                        </div>
+                  
+                  <!-- Bileşenler -->
+                  <div v-if="components && components.length" class="px-3 mb-3">
+                    <div class="card">
+                      <div class="card-header p-2">
+                        <h6 class="card-title mb-0">Tespit Edilen Bileşenler</h6>
                       </div>
-                      
-                      <table class="table table-sm">
-                        <tbody>
-                          <tr v-for="(metric, key) in analysisResults.algorithm.metrics" :key="key">
-                            <th>{{ metricLabel(key) }}</th>
-                            <td>{{ (metric * 100).toFixed(2) }}%</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                      
-                      <div class="alert alert-info mt-3 small">
-                        <i class="bi bi-info-circle-fill me-1"></i>
-                        {{ analysisResults.algorithm.explanation }}
+                      <ul class="list-group list-group-flush">
+                        <li v-for="(comp, index) in components" :key="index" class="list-group-item p-2 small">
+                          <div><strong>{{ comp.name }}</strong></div>
+                          <div class="text-muted">Tür: {{ comp.type }}</div>
+                          <div v-if="comp.material" class="text-muted">Malzeme: {{ comp.material }}</div>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                  
+                  <!-- Hatalar -->
+                  <div v-if="errors && errors.length" class="px-3 mb-3">
+                    <div class="card">
+                      <div class="card-header p-2 text-white" :class="errorSeverityClass">
+                        <h6 class="card-title mb-0">Tespit Edilen Hatalar</h6>
+                      </div>
+                      <ul class="list-group list-group-flush">
+                        <li v-for="(error, index) in errors" :key="index" class="list-group-item p-2 small">
+                          <div class="d-flex justify-content-between align-items-center">
+                            <strong>{{ error.description }}</strong>
+                            <span class="badge" :class="getSeverityClass(error.severity)">{{ error.severity }}</span>
+                          </div>
+                          <div class="text-muted">{{ error.type }}</div>
+                          <div v-if="error.fix" class="text-success mt-1">
+                            <i class="bi bi-tools me-1"></i>{{ error.fix }}
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <!-- Malzeme listesi -->
+                  <div v-if="billOfMaterials && billOfMaterials.length" class="px-3 mb-3">
+                    <div class="card">
+                      <div class="card-header p-2">
+                        <h6 class="card-title mb-0">Malzeme Listesi (BOM)</h6>
+                      </div>
+                      <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-0">
+                          <thead>
+                            <tr>
+                              <th>Poz.</th>
+                              <th>Parça No</th>
+                              <th>Açıklama</th>
+                              <th>Adet</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="item in billOfMaterials" :key="item.position">
+                              <td>{{ item.position }}</td>
+                              <td>{{ item.partNumber }}</td>
+                              <td>{{ item.description }}</td>
+                              <td>{{ item.quantity }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Çıkarılan metin -->
+                  <div v-if="extractedTexts && extractedTexts.length" class="px-3 mb-3">
+                    <div class="card">
+                      <div class="card-header p-2">
+                        <h6 class="card-title mb-0">Çizimdeki Metinler</h6>
+                      </div>
+                      <ul class="list-group list-group-flush">
+                        <li v-for="(text, index) in extractedTexts" :key="index" class="list-group-item p-2 small">
+                          <div><strong>{{ text.text }}</strong></div>
+                          <div class="text-muted">Tür: {{ text.type }}</div>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <!-- Özet -->
+                  <div v-if="summary" class="px-3 mb-3">
+                    <div class="card">
+                      <div class="card-body p-2">
+                        <h6 class="card-title mb-2">Özet</h6>
+                        <div class="small">
+                          <div v-if="summary.detectedProduct"><strong>Ürün:</strong> {{ summary.detectedProduct }}</div>
+                          <div v-if="summary.mainDimensions"><strong>Ana Boyutlar:</strong> {{ summary.mainDimensions }}</div>
+                          <div v-if="summary.primaryMaterial"><strong>Ana Malzeme:</strong> {{ summary.primaryMaterial }}</div>
+                          <div v-if="summary.componentCount"><strong>Bileşen Sayısı:</strong> {{ summary.componentCount }}</div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+
+              <div class="cad-viewer-main">
+                <!-- Çizim görüntüleme alanı -->
+                <div class="drawing-container" ref="drawingContainer">
+                  <img v-if="isImageDrawing && drawingSrc" :src="drawingSrc" class="img-fluid technical-drawing" 
+                       @load="onDrawingLoaded" @error="onDrawingError" ref="drawingImage">
+                  
+                  <div v-if="modelUrl && showModelViewer" class="model-viewer-container">
+                    <!-- 3D Model viewer burada yer alacak (üçüncü parti kütüphane entegrasyonu) -->
+                    <div class="model-placeholder d-flex align-items-center justify-content-center h-100 border">
+                      <div class="text-center p-4">
+                        <i class="bi bi-badge-3d fs-1 mb-3"></i>
+                        <h5>3D Model Görüntüleyici</h5>
+                        <p class="mb-2">Model URL: {{ modelUrl }}</p>
+                        <p class="text-muted">Model görüntüleyici entegrasyonu gerekiyor</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div v-if="!drawingSrc && !modelUrl" class="drawing-placeholder d-flex align-items-center justify-content-center h-100">
+                    <div class="text-center">
+                      <i class="bi bi-upload fs-1 mb-3"></i>
+                      <h5>Teknik Çizim Yükle</h5>
+                      <p class="text-muted">CAD dosyası veya çizim görüntüsü seçin</p>
+                      <label class="btn btn-outline-primary">
+                        Dosya Seç
+                        <input type="file" class="d-none" @change="onFileSelected" accept=".dwg,.dxf,.pdf,.png,.jpg,.jpeg,.svg">
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Görselleştirme öğeleri (bounding box vs) -->
+                  <div v-if="drawingLoaded && showVisualizations" class="visualization-layer">
+                    <div v-for="(comp, index) in components" :key="'viz-'+index" 
+                        :style="getBoundingBoxStyle(comp.boundingBox)"
+                        class="component-box">
+                      <span class="component-label">{{ comp.name }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Çizim kontrolü toolbar -->
+                <div v-if="drawingLoaded" class="drawing-toolbar bg-light p-2">
+                  <div class="btn-group me-2">
+                    <button class="btn btn-sm btn-outline-secondary" title="Yakınlaştır">
+                      <i class="bi bi-zoom-in"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" title="Uzaklaştır">
+                      <i class="bi bi-zoom-out"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" title="Sığdır">
+                      <i class="bi bi-arrows-fullscreen"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="btn-group me-2">
+                    <button @click="toggleVisualizations" class="btn btn-sm" 
+                            :class="showVisualizations ? 'btn-primary' : 'btn-outline-secondary'"
+                            title="Görselleştirmeler">
+                      <i class="bi bi-eye"></i>
+                    </button>
+                    <button @click="toggleAnalysisPane" class="btn btn-sm" 
+                            :class="showAnalysisPane ? 'btn-primary' : 'btn-outline-secondary'"
+                            title="Analiz Paneli">
+                      <i class="bi bi-layout-sidebar"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="btn-group">
+                    <button @click="downloadResults" class="btn btn-sm btn-outline-primary" title="Sonuçları İndir">
+                      <i class="bi bi-download"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" title="Temizle" @click="resetViewer">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-            
-            <div v-else class="text-center py-4">
-              <button class="btn btn-primary" @click="analyzeModel">
-                <i class="bi bi-graph-up me-1"></i> Modeli Analiz Et
-              </button>
-              <p class="text-muted small mt-2">
-                Makine öğrenmesi algoritmalarını kullanarak modeli analiz edin.
-                Bu işlem birkaç dakika sürebilir.
-              </p>
-            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Kapat</button>
+            <button type="button" class="btn btn-primary" :disabled="!analysisResult" @click="applyResults">
+              Sonuçları Uygula
+            </button>
           </div>
         </div>
       </div>
@@ -494,1094 +270,536 @@
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted, onUnmounted, watch, reactive, computed } from 'vue'
-import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
-// AR/VR için ThreeJS eklentileri
-import { ARButton } from 'three/examples/jsm/webxr/ARButton.js'
-import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'
-import { XREstimatedLight } from 'three/examples/jsm/webxr/XREstimatedLight.js'
-import { useAiService } from '@/services/ai-service'
+<script>
+import { ref, reactive, computed, onMounted } from 'vue';
+import { cadAiService } from '@/services/cad-ai-service';
+import { useToast } from '@/composables/useToast';
 
-const props = defineProps({
-  modelId: {
-    type: String,
-    required: true
-  }
-})
-
-const emit = defineEmits(['close'])
-
-// State
-const canvasElement = ref(null)
-const isLoading = ref(true)
-const error = ref(null)
-const modelInfo = ref(null)
-const modelName = ref('3D Model Görüntüleyici')
-const activeTab = ref('info')
-const showMeasurements = ref(false)
-const isExploded = ref(false)
-const componentVisibility = reactive({})
-const modelMeasurements = ref([])
-const measurementsLoading = ref(false)
-
-// Makine Öğrenmesi Analiz Durumu
-const analyzeLoading = ref(false)
-const analysisProgress = ref(0)
-const analysisResults = ref(null)
-
-// AR/VR state
-const arMode = ref(false)
-const vrMode = ref(false)
-const isARSupported = ref(false)
-const arOptions = reactive({
-  scale: 1.0,
-  environment: 'neutral',
-  shadowQuality: 'medium',
-  showAnnotations: true
-})
-
-// ThreeJS değişkenleri
-let scene, camera, renderer, controls, model, originalModelState
-let measurements = []
-let xrSession = null
-let xrLight = null
-const aiService = useAiService()
-
-// 3D görüntüleme için ThreeJS ayarla
-const setupViewer = () => {
-  if (!canvasElement.value) return
+export default {
+  name: 'CADViewerModal',
   
-  // Sahne oluştur
-  scene = new THREE.Scene()
-  scene.background = new THREE.Color(0xf0f2f5)
-  
-  // Kamera oluştur
-  camera = new THREE.PerspectiveCamera(
-    45, 
-    canvasElement.value.clientWidth / canvasElement.value.clientHeight,
-    0.1,
-    1000
-  )
-  camera.position.set(0, 2, 10)
-  
-  // Işık ekle
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
-  scene.add(ambientLight)
-  
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
-  directionalLight.position.set(1, 1, 1)
-  directionalLight.castShadow = true
-  directionalLight.shadow.mapSize.width = 2048
-  directionalLight.shadow.mapSize.height = 2048
-  scene.add(directionalLight)
-  
-  const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5)
-  directionalLight2.position.set(-1, -1, -1)
-  scene.add(directionalLight2)
-  
-  // Renderer oluştur
-  renderer = new THREE.WebGLRenderer({
-    canvas: canvasElement.value,
-    antialias: true,
-    alpha: true
-  })
-  renderer.setSize(canvasElement.value.clientWidth, canvasElement.value.clientHeight)
-  renderer.setPixelRatio(window.devicePixelRatio)
-  renderer.shadowMap.enabled = true
-  renderer.outputEncoding = THREE.sRGBEncoding
-  
-  // XR özelliklerini ekle
-  renderer.xr.enabled = true
-  
-  // AR desteğini kontrol et
-  navigator.xr?.isSessionSupported('immersive-ar')
-    .then((supported) => {
-      isARSupported.value = supported
-    })
-    .catch(() => {
-      isARSupported.value = false
-    })
-  
-  // Kontrol ekle
-  controls = new OrbitControls(camera, renderer.domElement)
-  controls.enableDamping = true
-  controls.dampingFactor = 0.05
-  
-  // Pencere boyutu değişirse güncelle
-  window.addEventListener('resize', onWindowResize)
-  
-  // Animasyon döngüsü başlat
-  renderer.setAnimationLoop(animate)
-}
-
-// Model bilgisini yükle
-const loadModelInfo = async () => {
-  try {
-    const systemData = await aiService.getSystemData()
-    const model = systemData.cadModels.find(m => m.id === props.modelId)
-    
-    if (model) {
-      modelInfo.value = model
-      modelName.value = model.name
-      
-      // Görünürlük durumlarını ayarla
-      if (model.components) {
-        model.components.forEach((_, index) => {
-          componentVisibility[index] = true
-        })
-      }
-    } else {
-      error.value = 'Model bilgisi bulunamadı'
-    }
-  } catch (err) {
-    console.error('Model bilgisi yüklenirken hata:', err)
-    error.value = 'Model bilgisi alınırken bir hata oluştu'
-  }
-}
-
-// 3D modeli yükle
-const loadModel = () => {
-  if (!scene) return
-  
-  const modelPath = modelInfo.value?.path || `/models/${props.modelId}.glb`
-  const modelExtension = modelPath.split('.').pop().toLowerCase()
-  let loader
-  
-  // Dosya uzantısına göre yükleyici seç
-  switch (modelExtension) {
-    case 'glb':
-    case 'gltf':
-      loader = new GLTFLoader()
-      break
-    case 'stl':
-      loader = new STLLoader()
-      break
-    case 'obj':
-      loader = new OBJLoader()
-      break
-    default:
-      loader = new GLTFLoader() // Varsayılan yükleyici
-  }
-  
-  loader.load(
-    modelPath,
-    (loadedModel) => {
-      // GLB/GLTF için özel işleme
-      if (modelExtension === 'glb' || modelExtension === 'gltf') {
-        model = loadedModel.scene
-      } 
-      // STL için özel işleme
-      else if (modelExtension === 'stl') {
-        const material = new THREE.MeshStandardMaterial({ color: 0xA9A9A9 })
-        model = new THREE.Mesh(loadedModel, material)
-      }
-      // OBJ için doğrudan modeli kullan
-      else {
-        model = loadedModel
-      }
-      
-      // Model işlemleri
-      // Modeli gölgelere duyarlı hale getir
-      model.traverse((node) => {
-        if (node.isMesh) {
-          node.castShadow = true
-          node.receiveShadow = true
-          
-          // Modelin materyaline metalik ve pürüzsüz özellikleri ekle
-          if (node.material) {
-            node.material.metalness = 0.3
-            node.material.roughness = 0.7
-          }
-        }
-      })
-      
-      // Sahneye ekle
-      scene.add(model)
-      
-      // Modeli merkeze hizala
-      const box = new THREE.Box3().setFromObject(model)
-      const center = box.getCenter(new THREE.Vector3())
-      const size = box.getSize(new THREE.Vector3())
-      
-      model.position.x = -center.x
-      model.position.y = -center.y
-      model.position.z = -center.z
-      
-      // Kamerayı modele hizala
-      const maxDim = Math.max(size.x, size.y, size.z)
-      const distance = maxDim * 2
-      camera.position.set(distance, distance * 0.5, distance)
-      camera.lookAt(0, 0, 0)
-      
-      // Orijinal modeli sakla
-      originalModelState = model.clone()
-      
-      // Yükleme tamamlandı
-      isLoading.value = false
-      
-      // Ölçüm verilerini yükle
-      loadMeasurements()
+  props: {
+    modalId: {
+      type: String,
+      default: 'cadViewerModal'
     },
-    (progressEvent) => {
-      const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100)
-      console.log(`Yükleme: %${progress}`)
+    title: {
+      type: String,
+      default: 'Teknik Çizim Görüntüleyici'
     },
-    (error) => {
-      console.error('Model yüklenirken hata:', error)
-      showErrorModel()
+    initialDrawingSrc: {
+      type: String,
+      default: ''
     }
-  )
-}
-
-// Hata durumunda basit bir model göster
-const showErrorModel = () => {
-  const geometry = new THREE.BoxGeometry(2, 2, 2)
-  const material = new THREE.MeshStandardMaterial({ color: 0xff0000 })
-  const cube = new THREE.Mesh(geometry, material)
+  },
   
-  scene.add(cube)
+  emits: ['analysis-complete', 'apply-results'],
   
-  isLoading.value = false
-  error.value = 'Model yüklenemedi. Lütfen tekrar deneyin.'
-}
-
-// Animasyon döngüsü
-const animate = (timestamp, frame) => {
-  // XR sessionu varsa
-  if (renderer.xr.isPresenting && frame) {
-    // XR için gerekli işlemler burada
-    handleXRInteractions(frame)
-  }
-  
-  if (controls && !arMode.value && !vrMode.value) {
-    controls.update()
-  }
-  
-  if (renderer && scene && camera) {
-    renderer.render(scene, camera)
-  }
-}
-
-// XR etkileşimleri için işlev
-const handleXRInteractions = (frame) => {
-  if (!xrSession) return
-  
-  // AR/VR etkileşimleri burada işlenecek
-  const referenceSpace = renderer.xr.getReferenceSpace()
-  const session = renderer.xr.getSession()
-  
-  if (frame && session) {
-    // Kullanıcı etkileşimlerini işle
-    if (session.inputSources) {
-      for (const inputSource of session.inputSources) {
-        if (inputSource.gamepad) {
-          handleControllerInput(inputSource, frame, referenceSpace)
-        }
-      }
-    }
+  setup(props, { emit }) {
+    const { toast } = useToast();
+    const drawingContainer = ref(null);
+    const drawingImage = ref(null);
     
-    // AR hizalama ve ışıklandırma güncellemeleri
-    if (arMode.value && xrLight) {
-      xrLight.update(referenceSpace, frame)
-    }
-  }
-}
-
-// VR kontrolcü girişlerini işle
-const handleControllerInput = (inputSource, frame, referenceSpace) => {
-  if (!inputSource.gamepad) return
-  
-  const axes = inputSource.gamepad.axes
-  const buttons = inputSource.gamepad.buttons
-  
-  // Modeli döndürmek için kontrol çubuğunu kullan
-  if (model && axes.length >= 2 && (Math.abs(axes[0]) > 0.1 || Math.abs(axes[1]) > 0.1)) {
-    model.rotation.y += axes[0] * 0.05
-    model.rotation.x += axes[1] * 0.05
-  }
-  
-  // Butonlarla etkileşim için
-  if (buttons.length > 0 && buttons[0].pressed) {
-    // İlk buton basıldığında modeli parçala/birleştir
-    toggleExplode()
-  }
-}
-
-// AR görünümünü başlat
-const startARView = () => {
-  if (!renderer || !isARSupported.value) return
-  
-  arMode.value = true
-  vrMode.value = false
-  
-  // AR butonunu oluştur
-  const arButton = ARButton.createButton(renderer, {
-    requiredFeatures: ['hit-test'],
-    optionalFeatures: ['dom-overlay', 'light-estimation'],
-    domOverlay: { root: document.body }
-  })
-  
-  document.body.appendChild(arButton)
-  
-  // AR oturumunu başlat
-  renderer.xr.getSession().then((session) => {
-    xrSession = session
+    // Durum değişkenleri
+    const isLoading = ref(false);
+    const loadingMessage = ref('');
+    const drawingSrc = ref(props.initialDrawingSrc || '');
+    const drawingLoaded = ref(false);
+    const fileType = ref(null);
+    const showAnalysisPane = ref(true);
+    const showVisualizations = ref(true);
+    const analysisResult = ref(null);
+    const selectedFile = ref(null);
+    const modelUrl = ref('');
+    const showModelViewer = ref(false);
     
-    // Işık tahmini özelliğini ekle
-    xrLight = new XREstimatedLight(renderer)
-    scene.add(xrLight)
+    // Çizimden çıkarılan veriler
+    const components = ref([]);
+    const dimensions = ref([]);
+    const errors = ref([]);
+    const billOfMaterials = ref([]);
+    const extractedTexts = ref([]);
+    const summary = ref(null);
     
-    // AR oturumu sonlandığında temizle
-    session.addEventListener('end', () => {
-      exitARMode()
-    })
-    
-    // AR'da zemin oluştur
-    createARGroundPlane()
-    
-    // Arka planı transparan yap
-    scene.background = null
-  }).catch(error => {
-    console.error('AR oturumu başlatılamadı:', error)
-    arMode.value = false
-  })
-}
-
-// AR için zemin düzlemi oluştur
-const createARGroundPlane = () => {
-  const planeGeometry = new THREE.PlaneGeometry(20, 20)
-  const planeMaterial = new THREE.ShadowMaterial({
-    opacity: 0.2
-  })
-  
-  const plane = new THREE.Mesh(planeGeometry, planeMaterial)
-  plane.rotation.x = -Math.PI / 2
-  plane.position.y = -0.5
-  plane.receiveShadow = true
-  scene.add(plane)
-}
-
-// AR modundan çık
-const exitARMode = () => {
-  if (xrSession) {
-    xrSession.end()
-  }
-  
-  arMode.value = false
-  
-  // AR elementi varsa kaldır
-  const arElement = document.getElementById('ar-button')
-  if (arElement) {
-    arElement.remove()
-  }
-  
-  // Arka planı geri yükle
-  scene.background = new THREE.Color(0xf0f2f5)
-  
-  // Işık ayarlarını geri getir
-  if (xrLight) {
-    scene.remove(xrLight)
-    xrLight = null
-  }
-}
-
-// VR görünümünü başlat
-const startVRView = () => {
-  if (!renderer) return
-  
-  vrMode.value = true
-  arMode.value = false
-  
-  // VR butonunu oluştur
-  const vrButton = VRButton.createButton(renderer)
-  document.body.appendChild(vrButton)
-  
-  // VR oturumunu başlat
-  renderer.xr.getSession().then((session) => {
-    xrSession = session
-    
-    // VR kontrolcüleri ekle
-    setupVRControllers()
-    
-    // VR oturumu sonlandığında temizle
-    session.addEventListener('end', () => {
-      exitVRMode()
-    })
-  }).catch(error => {
-    console.error('VR oturumu başlatılamadı:', error)
-    vrMode.value = false
-  })
-}
-
-// VR kontrolcüleri oluştur
-const setupVRControllers = () => {
-  if (!xrSession) return
-  
-  xrSession.inputSources.forEach(inputSource => {
-    if (inputSource.gamepad) {
-      console.log('VR kontrolcüsü bulundu')
-    }
-  })
-  
-  xrSession.addEventListener('inputsourceschange', (event) => {
-    // Yeni giriş kaynakları eklendiğinde veya kaldırıldığında
-    console.log('Giriş kaynakları değişti:', event)
-  })
-}
-
-// VR modundan çık
-const exitVRMode = () => {
-  if (xrSession) {
-    xrSession.end()
-  }
-  
-  vrMode.value = false
-  
-  // VR elementi varsa kaldır
-  const vrElement = document.getElementById('vr-button')
-  if (vrElement) {
-    vrElement.remove()
-  }
-}
-
-// Kamerayı sıfırla
-const resetCamera = () => {
-  if (!camera || !model) return
-  
-  const box = new THREE.Box3().setFromObject(model)
-  const size = box.getSize(new THREE.Vector3())
-  
-  const maxDim = Math.max(size.x, size.y, size.z)
-  const distance = maxDim * 2
-  camera.position.set(distance, distance * 0.5, distance)
-  camera.lookAt(0, 0, 0)
-  
-  if (controls) {
-    controls.enabled = true
-    controls.update()
-  }
-}
-
-// AR/VR modelini dışa aktar
-const exportARModel = () => {
-  // Modeli GLTF formatına dönüştür ve indir
-  try {
-    // GLTFExporter'ı kullanmak için önce import edilmesi gerekiyor
-    import('three/examples/jsm/exporters/GLTFExporter.js').then(({ GLTFExporter }) => {
-      const exporter = new GLTFExporter()
-      
-      // Modeli kopyala ve AR için hazırla
-      const arModel = model.clone()
-      
-      // AR seçeneklerini uygula
-      arModel.scale.set(arOptions.scale, arOptions.scale, arOptions.scale)
-      
-      exporter.parse(
-        arModel,
-        (gltf) => {
-          if (gltf instanceof ArrayBuffer) {
-            saveArrayBuffer(gltf, `${modelName.value.replace(/\s+/g, '-')}-AR.glb`)
-          } else {
-            const output = JSON.stringify(gltf)
-            saveString(output, `${modelName.value.replace(/\s+/g, '-')}-AR.gltf`)
-          }
-        },
-        (error) => {
-          console.error('GLTF dışa aktarma hatası:', error)
-        },
-        { binary: true } // GLB formatında dışa aktar
-      )
-    })
-  } catch (error) {
-    console.error('AR modeli dışa aktarılamadı:', error)
-  }
-}
-
-// ArrayBuffer'ı dosya olarak kaydet
-const saveArrayBuffer = (buffer, fileName) => {
-  const blob = new Blob([buffer], { type: 'application/octet-stream' })
-  const link = document.createElement('a')
-  
-  link.href = URL.createObjectURL(blob)
-  link.download = fileName
-  link.click()
-  
-  // URL'yi temizle
-  URL.revokeObjectURL(link.href)
-}
-
-// String'i dosya olarak kaydet
-const saveString = (text, fileName) => {
-  const blob = new Blob([text], { type: 'text/plain' })
-  const link = document.createElement('a')
-  
-  link.href = URL.createObjectURL(blob)
-  link.download = fileName
-  link.click()
-  
-  // URL'yi temizle
-  URL.revokeObjectURL(link.href)
-}
-
-// Ekran görüntüsü al
-const captureScreenshot = () => {
-  if (!renderer) return
-  
-  // Canvas elementi bir base64 görüntü olarak dışa aktar
-  const screenshot = renderer.domElement.toDataURL('image/png')
-  
-  // Görüntüyü indirmek için bir bağlantı oluştur
-  const link = document.createElement('a')
-  link.href = screenshot
-  link.download = `${modelName.value.replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.png`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-}
-
-// Ölçümleri göster/gizle
-const toggleMeasurements = () => {
-  showMeasurements.value = !showMeasurements.value
-  
-  // Ölçüm çizgilerini göster/gizle
-  if (measurements.length === 0 && showMeasurements.value) {
-    createMeasurements()
-  } else {
-    measurements.forEach(m => {
-      m.visible = showMeasurements.value
-    })
-  }
-}
-
-// Ölçüm çizgilerini oluştur
-const createMeasurements = () => {
-  if (!model || !modelMeasurements.value || !scene) return
-  
-  // Önceki ölçümleri temizle
-  measurements.forEach(m => scene.remove(m))
-  measurements = []
-  
-  // Modelin sınırlayıcı kutusunu hesapla
-  const box = new THREE.Box3().setFromObject(model)
-  const size = box.getSize(new THREE.Vector3())
-  const center = box.getCenter(new THREE.Vector3())
-  
-  // Her ölçüm için görsel öğeler oluştur
-  modelMeasurements.value.forEach(measurement => {
-    if (measurement.type === 'height') {
-      const height = new THREE.Group()
-      
-      // Ölçüm çizgisi
-      const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(center.x - size.x/2, center.y - size.y/2, center.z),
-        new THREE.Vector3(center.x - size.x/2, center.y + size.y/2, center.z)
-      ])
-      const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 })
-      const line = new THREE.Line(lineGeometry, lineMaterial)
-      
-      // Ölçüm etiketi
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
-      canvas.width = 256
-      canvas.height = 64
-      
-      context.fillStyle = 'rgba(0, 0, 0, 0.8)'
-      context.fillRect(0, 0, canvas.width, canvas.height)
-      
-      context.font = '24px Arial'
-      context.fillStyle = 'white'
-      context.fillText(`${measurement.name}: ${measurement.value}${measurement.unit}`, 10, 40)
-      
-      const texture = new THREE.CanvasTexture(canvas)
-      const labelMaterial = new THREE.SpriteMaterial({ map: texture })
-      const label = new THREE.Sprite(labelMaterial)
-      label.scale.set(2, 0.5, 1)
-      label.position.set(center.x - size.x/2 - 1, center.y, center.z)
-      
-      height.add(line)
-      height.add(label)
-      
-      scene.add(height)
-      measurements.push(height)
-    }
-    
-    if (measurement.type === 'width') {
-      const width = new THREE.Group()
-      
-      // Ölçüm çizgisi
-      const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(center.x - size.x/2, center.y - size.y/2, center.z),
-        new THREE.Vector3(center.x + size.x/2, center.y - size.y/2, center.z)
-      ])
-      const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 })
-      const line = new THREE.Line(lineGeometry, lineMaterial)
-      
-      // Ölçüm etiketi
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
-      canvas.width = 256
-      canvas.height = 64
-      
-      context.fillStyle = 'rgba(0, 0, 0, 0.8)'
-      context.fillRect(0, 0, canvas.width, canvas.height)
-      
-      context.font = '24px Arial'
-      context.fillStyle = 'white'
-      context.fillText(`${measurement.name}: ${measurement.value}${measurement.unit}`, 10, 40)
-      
-      const texture = new THREE.CanvasTexture(canvas)
-      const labelMaterial = new THREE.SpriteMaterial({ map: texture })
-      const label = new THREE.Sprite(labelMaterial)
-      label.scale.set(2, 0.5, 1)
-      label.position.set(center.x, center.y - size.y/2 - 1, center.z)
-      
-      width.add(line)
-      width.add(label)
-      
-      scene.add(width)
-      measurements.push(width)
-    }
-    
-    if (measurement.type === 'depth') {
-      const depth = new THREE.Group()
-      
-      // Ölçüm çizgisi
-      const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(center.x - size.x/2, center.y - size.y/2, center.z - size.z/2),
-        new THREE.Vector3(center.x - size.x/2, center.y - size.y/2, center.z + size.z/2)
-      ])
-      const lineMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff })
-      const line = new THREE.Line(lineGeometry, lineMaterial)
-      
-      // Ölçüm etiketi
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
-      canvas.width = 256
-      canvas.height = 64
-      
-      context.fillStyle = 'rgba(0, 0, 0, 0.8)'
-      context.fillRect(0, 0, canvas.width, canvas.height)
-      
-      context.font = '24px Arial'
-      context.fillStyle = 'white'
-      context.fillText(`${measurement.name}: ${measurement.value}${measurement.unit}`, 10, 40)
-      
-      const texture = new THREE.CanvasTexture(canvas)
-      const labelMaterial = new THREE.SpriteMaterial({ map: texture })
-      const label = new THREE.Sprite(labelMaterial)
-      label.scale.set(2, 0.5, 1)
-      label.position.set(center.x - size.x/2, center.y - size.y/2, center.z)
-      
-      depth.add(line)
-      depth.add(label)
-      
-      scene.add(depth)
-      measurements.push(depth)
-    }
-  })
-}
-
-// Modeli parçala/birleştir
-const toggleExplode = () => {
-  if (!model) return
-  
-  isExploded.value = !isExploded.value
-  
-  if (isExploded.value) {
-    // Modeli parçalara ayır
-    let childIndex = 0
-    model.traverse((child) => {
-      if (child.isMesh) {
-        // Her parçanın orijinal pozisyonunu sakla
-        if (!child.userData.originalPosition) {
-          child.userData.originalPosition = child.position.clone()
-        }
-        
-        // Parçaları dışa doğru hareket ettir
-        const direction = new THREE.Vector3()
-        direction.subVectors(child.position, new THREE.Vector3(0, 0, 0)).normalize()
-        child.position.add(direction.multiplyScalar(0.5))
-        
-        // Animasyon için zaman gecikmesi ekle
-        setTimeout(() => {
-          child.position.add(direction.multiplyScalar(0.3))
-        }, 100 * childIndex)
-        
-        childIndex++
-      }
-    })
-  } else {
-    // Modeli birleştir
-    model.traverse((child) => {
-      if (child.isMesh && child.userData.originalPosition) {
-        // Her parçayı orijinal pozisyonuna geri getir
-        child.position.copy(child.userData.originalPosition)
-      }
-    })
-  }
-}
-
-// Bileşen görünürlüğünü değiştir
-const toggleComponentVisibility = (index) => {
-  if (!model) return
-  
-  let componentIndex = 0
-  model.traverse((child) => {
-    if (child.isMesh) {
-      if (componentIndex === index) {
-        child.visible = componentVisibility[index]
-      }
-      componentIndex++
-    }
-  })
-}
-
-// Ölçüm verilerini yükle
-const loadMeasurements = async () => {
-  measurementsLoading.value = true
-  
-  try {
-    const response = await aiService.modelMeasurements(props.modelId)
-    
-    if (response && response.success && response.data && response.data.measurements) {
-      modelMeasurements.value = response.data.measurements
-    } else {
-      console.error('Ölçümler alınamadı:', response)
-    }
-  } catch (error) {
-    console.error('Ölçümler yüklenirken hata:', error)
-  } finally {
-    measurementsLoading.value = false
-  }
-}
-
-// ML analizi için yeni özellik
-const runMachineLearningAnalysis = async () => {
-  if (!modelInfo.value) return
-  
-  try {
-    // ML analizi yapılıyor olarak işaretle
-    isLoading.value = true
-    
-    // AI servisi üzerinden ML analizi çalıştır
-    const analysis = await aiService.analyzeCADModel({
-      modelId: props.modelId,
-      modelName: modelInfo.value.name,
-      format: modelInfo.value.format
-    })
-    
-    // Analiz sonuçlarını göster
-    if (analysis && analysis.results) {
-      // ML analiz sonuçlarını modele ekle
-      modelInfo.value.mlAnalysis = {
-        timestamp: new Date(),
-        results: analysis.results,
-        suggestions: analysis.suggestions || [],
-        optimizations: analysis.optimizations || [],
-        similarModels: analysis.similarModels || []
-      }
-      
-      // ML sekmesini aktifleştir
-      activeTab.value = 'ml_analysis'
-    }
-  } catch (error) {
-    console.error('ML analizi hatası:', error)
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// Zorluk seviyesine göre sınıf hesaplama
-const difficultyClass = computed(() => {
-  if (!analysisResults.value) return 'bg-secondary';
-  
-  const difficulty = analysisResults.value.production.difficulty;
-  if (difficulty <= 2) return 'bg-success';
-  if (difficulty <= 4) return 'bg-warning';
-  return 'bg-danger';
-})
-
-// Metrik etiketlerini formatla
-const metricLabel = (key) => {
-  switch(key) {
-    case 'precision': return 'Hassasiyet';
-    case 'recall': return 'Duyarlılık';
-    case 'f1': return 'F1 Skoru';
-    case 'accuracy': return 'Doğruluk';
-    default: return key.charAt(0).toUpperCase() + key.slice(1);
-  }
-}
-
-// Modeli analiz et
-const analyzeModel = async () => {
-  if (!modelInfo.value) return;
-  
-  analyzeLoading.value = true;
-  analysisProgress.value = 0;
-  
-  try {
-    // Progress simulasyonu
-    const progressInterval = setInterval(() => {
-      analysisProgress.value += Math.random() * 5;
-      if (analysisProgress.value > 95) {
-        analysisProgress.value = 95;
-        clearInterval(progressInterval);
-      }
-    }, 300);
-    
-    // AI servisini kullanarak CAD modelini analiz et
-    const analysis = await aiService.analyzeCADModel({
-      modelId: props.modelId,
-      modelName: modelInfo.value.name,
-      format: modelInfo.value.format
+    // Hesaplanan özellikler
+    const isImageDrawing = computed(() => {
+      const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp'];
+      return !fileType.value || imageExtensions.includes(fileType.value.toLowerCase());
     });
     
-    // Analiz tamamlandı
-    analysisProgress.value = 100;
-    clearInterval(progressInterval);
+    const canGenerate3D = computed(() => {
+      const supported = ['.dwg', '.dxf', '.step', '.stp', '.iges', '.igs'];
+      return fileType.value && supported.includes(fileType.value.toLowerCase());
+    });
     
-    // Dummy analiz sonuçları oluştur (gerçek API bağlantısı olana kadar)
-    analysisResults.value = {
-      materials: [
-        { name: 'Çelik', quantity: 120, unit: 'kg', estimatedCost: 1850 },
-        { name: 'Bakır', quantity: 15, unit: 'kg', estimatedCost: 2100 },
-        { name: 'Paslanmaz Çelik', quantity: 5, unit: 'kg', estimatedCost: 750 },
-        { name: 'Plastik', quantity: 8, unit: 'kg', estimatedCost: 320 }
-      ],
-      totalCost: 5020,
-      production: {
-        estimatedTime: 120,
-        difficulty: 3,
-        customizationPotential: 4,
-        requiredEquipment: ['CNC', 'Lazer Kesim', 'Büküm Presi', 'Kaynak']
-      },
-      quality: {
-        criticalComponents: [
-          { name: 'Kesici Mekanizma', impactScore: 9 },
-          { name: 'Bara Bağlantısı', impactScore: 7 },
-          { name: 'Ana Gövde', impactScore: 5 }
-        ],
-        recommendedTests: [
-          'Yalıtım Direnci Testi',
-          'Yük Altında Çalışma Testi',
-          'Sıcaklık Yükselme Testi',
-          'IP Koruma Testi'
-        ]
-      },
-      algorithm: {
-        accuracy: 0.94,
-        metrics: {
-          precision: 0.92,
-          recall: 0.88,
-          f1: 0.90
-        },
-        explanation: 'Bu analiz, makine öğrenmesi algoritmalarını kullanarak CAD modelini değerlendirdi. Model, benzer endüstriyel elektrik ekipmanlarının bilinen parametrelerine dayalı olarak materyal ve üretim özelliklerini tahmin etmektedir. %94 doğruluk oranıyla, malzeme gereksinimleri ve üretim süresi gibi kritik faktörler için güvenilir sonuçlar sağlamaktadır.'
+    const errorSeverityClass = computed(() => {
+      if (!errors.value || errors.value.length === 0) return 'bg-success';
+      
+      const hasCritical = errors.value.some(e => e.severity === 'high');
+      const hasMedium = errors.value.some(e => e.severity === 'medium');
+      
+      if (hasCritical) return 'bg-danger';
+      if (hasMedium) return 'bg-warning';
+      return 'bg-info';
+    });
+    
+    const analysisTime = computed(() => {
+      if (!analysisResult.value?.timestamp) return '-';
+      return new Date(analysisResult.value.timestamp).toLocaleString();
+    });
+    
+    const analysisConfidence = computed(() => {
+      if (!analysisResult.value?.result?.summary?.confidence) return '-';
+      return Math.round(analysisResult.value.result.summary.confidence * 100);
+    });
+    
+    // Metodlar
+    const loadDrawing = (src, type = null) => {
+      drawingSrc.value = src;
+      fileType.value = type;
+      modelUrl.value = '';
+      showModelViewer.value = false;
+      resetAnalysisData();
+    };
+    
+    const onFileSelected = (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      selectedFile.value = file;
+      fileType.value = '.' + file.name.split('.').pop().toLowerCase();
+      
+      // Dosya türünü kontrol et
+      if (!cadAiService._isSupportedFileFormat(fileType.value)) {
+        toast.error(`Desteklenmeyen dosya formatı: ${fileType.value}`);
+        return;
+      }
+      
+      if (isImageDrawing.value) {
+        // Görüntü dosyaları için URL oluştur
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          drawingSrc.value = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // CAD dosyaları için görüntü dönüştürme simülasyonu (demo)
+        isLoading.value = true;
+        loadingMessage.value = 'CAD dosyası işleniyor...';
+        
+        // Demo: Gecikme ile görüntü yükleniyor gibi davran
+        setTimeout(() => {
+          // Demo: Gerçek uygulamada CAD dosyası önizlemesi API'den alınacak
+          drawingSrc.value = 'https://example.com/cad-preview.png';
+          // Test için gerçek bir görüntü URL'si atama:
+          drawingSrc.value = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSI1MCIgeT0iNTAiIHdpZHRoPSI3MDAiIGhlaWdodD0iNTAwIiBzdHJva2U9ImJsYWNrIiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjIiLz48bGluZSB4MT0iMTAwIiB5MT0iMTAwIiB4Mj0iNzAwIiB5Mj0iMTAwIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjEiLz48bGluZSB4MT0iMTAwIiB5MT0iMTUwIiB4Mj0iNzAwIiB5Mj0iMTUwIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjEiLz48Y2lyY2xlIGN4PSIyMDAiIGN5PSIzMDAiIHI9IjgwIiBzdHJva2U9ImJsYWNrIiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjEiLz48cmVjdCB4PSI0MDAiIHk9IjI1MCIgd2lkdGg9IjE1MCIgaGVpZ2h0PSIxMDAiIHN0cm9rZT0iYmxhY2siIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMSIvPjx0ZXh0IHg9IjUwIiB5PSI0MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjIwIj5PUlRBIEdFUklMSU0gSFVDUkU8L3RleHQ+PHRleHQgeD0iNTAwIiB5PSI0MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE2Ij5STSAzNiBDQjwvdGV4dD48L3N2Zz4=';
+          isLoading.value = false;
+          drawingLoaded.value = true;
+        }, 1500);
       }
     };
-  } catch (error) {
-    console.error('Model analizi sırasında hata:', error);
-    analysisResults.value = null;
-    error.value = 'Model analiz edilirken bir hata oluştu.';
-  } finally {
-    analyzeLoading.value = false;
+    
+    const onDrawingLoaded = () => {
+      drawingLoaded.value = true;
+      isLoading.value = false;
+    };
+    
+    const onDrawingError = () => {
+      toast.error('Çizim yüklenirken hata oluştu');
+      isLoading.value = false;
+      drawingLoaded.value = false;
+    };
+    
+    const analyzeDrawing = async () => {
+      try {
+        isLoading.value = true;
+        loadingMessage.value = 'Çizim analiz ediliyor...';
+        resetAnalysisData();
+        
+        // Analiz işlemini başlat
+        const result = await cadAiService.analyzeDrawing(selectedFile.value || drawingSrc.value, {
+          fileType: fileType.value
+        });
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Analiz başarısız oldu');
+        }
+        
+        // Sonuçları işle
+        analysisResult.value = result;
+        processAnalysisResults(result.analysis);
+        
+        toast.success('Çizim analizi tamamlandı');
+        emit('analysis-complete', result);
+      } catch (error) {
+        toast.error(`Analiz hatası: ${error.message}`);
+        console.error('Çizim analiz hatası:', error);
+      } finally {
+        isLoading.value = false;
+      }
+    };
+    
+    const extractBOM = async () => {
+      try {
+        isLoading.value = true;
+        loadingMessage.value = 'Malzeme listesi çıkarılıyor...';
+        
+        const result = await cadAiService.extractBillOfMaterials(selectedFile.value || drawingSrc.value);
+        
+        if (!result.success) {
+          throw new Error(result.error || 'BOM çıkarma başarısız oldu');
+        }
+        
+        billOfMaterials.value = result.billOfMaterials;
+        toast.success('Malzeme listesi başarıyla çıkarıldı');
+      } catch (error) {
+        toast.error(`BOM çıkarma hatası: ${error.message}`);
+      } finally {
+        isLoading.value = false;
+      }
+    };
+    
+    const detectErrors = async () => {
+      try {
+        isLoading.value = true;
+        loadingMessage.value = 'Çizimdeki hatalar tespit ediliyor...';
+        
+        const result = await cadAiService.detectErrors(selectedFile.value || drawingSrc.value);
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Hata tespiti başarısız oldu');
+        }
+        
+        errors.value = result.errors;
+        toast.success(`${result.errors.length} hata tespit edildi`);
+      } catch (error) {
+        toast.error(`Hata tespiti sırasında sorun: ${error.message}`);
+      } finally {
+        isLoading.value = false;
+      }
+    };
+    
+    const extractText = async () => {
+      try {
+        isLoading.value = true;
+        loadingMessage.value = 'Çizimdeki metinler çıkarılıyor...';
+        
+        const result = await cadAiService.extractText(selectedFile.value || drawingSrc.value);
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Metin çıkarma başarısız oldu');
+        }
+        
+        extractedTexts.value = result.texts;
+        toast.success(`${result.texts.length} metin öğesi tespit edildi`);
+      } catch (error) {
+        toast.error(`Metin çıkarma hatası: ${error.message}`);
+      } finally {
+        isLoading.value = false;
+      }
+    };
+    
+    const generate3DPreview = async () => {
+      try {
+        isLoading.value = true;
+        loadingMessage.value = '3D model oluşturuluyor...';
+        
+        const result = await cadAiService.generateModelPreview(selectedFile.value || drawingSrc.value);
+        
+        if (!result.success) {
+          throw new Error(result.error || '3D model oluşturma başarısız oldu');
+        }
+        
+        modelUrl.value = result.modelData.url;
+        showModelViewer.value = true;
+        toast.success('3D model önizlemesi oluşturuldu');
+      } catch (error) {
+        toast.error(`3D model oluşturma hatası: ${error.message}`);
+      } finally {
+        isLoading.value = false;
+      }
+    };
+    
+    const processAnalysisResults = (analysis) => {
+      // Sonuçları ilgili state değişkenlerine aktar
+      if (analysis.components) {
+        components.value = analysis.components;
+      } else if (analysis.recognizedObjects) {
+        components.value = analysis.recognizedObjects.map(obj => ({
+          id: obj.id,
+          name: obj.class,
+          type: 'component',
+          confidence: obj.confidence,
+          boundingBox: obj.boundingBox
+        }));
+      }
+      
+      if (analysis.dimensions) {
+        dimensions.value = analysis.dimensions;
+      }
+      
+      if (analysis.summary) {
+        summary.value = analysis.summary;
+      }
+      
+      // Metinleri kontrol et
+      if (analysis.extractedText) {
+        extractedTexts.value = analysis.extractedText;
+      }
+      
+      // Çıkarılan verileri görselleştirmeleri aktifleştir
+      showVisualizations.value = true;
+    };
+    
+    const toggleAnalysisPane = () => {
+      showAnalysisPane.value = !showAnalysisPane.value;
+    };
+    
+    const toggleVisualizations = () => {
+      showVisualizations.value = !showVisualizations.value;
+    };
+    
+    const getBoundingBoxStyle = (box) => {
+      if (!box) return {};
+      
+      return {
+        position: 'absolute',
+        left: `${box.x}px`,
+        top: `${box.y}px`,
+        width: `${box.width}px`,
+        height: `${box.height}px`,
+        border: '2px solid rgba(0, 123, 255, 0.8)',
+        backgroundColor: 'rgba(0, 123, 255, 0.1)'
+      };
+    };
+    
+    const getSeverityClass = (severity) => {
+      switch(severity) {
+        case 'high': return 'bg-danger';
+        case 'medium': return 'bg-warning text-dark';
+        case 'low': return 'bg-info text-dark';
+        default: return 'bg-secondary';
+      }
+    };
+    
+    const resetAnalysisData = () => {
+      analysisResult.value = null;
+      components.value = [];
+      dimensions.value = [];
+      errors.value = [];
+      billOfMaterials.value = [];
+      extractedTexts.value = [];
+      summary.value = null;
+    };
+    
+    const resetViewer = () => {
+      drawingSrc.value = '';
+      drawingLoaded.value = false;
+      fileType.value = null;
+      selectedFile.value = null;
+      modelUrl.value = '';
+      showModelViewer.value = false;
+      resetAnalysisData();
+    };
+    
+    const downloadResults = () => {
+      if (!analysisResult.value) {
+        toast.error('İndirilebilir sonuç bulunamadı');
+        return;
+      }
+      
+      // JSON verisini indirilebilir dosyaya dönüştür
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(
+        JSON.stringify(analysisResult.value.result, null, 2)
+      );
+      
+      // İndirme bağlantısı oluştur
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", "cad_analysis_results.json");
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+    };
+    
+    const applyResults = () => {
+      if (!analysisResult.value) {
+        toast.error('Uygulanacak sonuç bulunamadı');
+        return;
+      }
+      
+      // Sonuçları üst bileşene gönder
+      emit('apply-results', {
+        components: components.value,
+        dimensions: dimensions.value,
+        extractedTexts: extractedTexts.value,
+        billOfMaterials: billOfMaterials.value,
+        summary: summary.value,
+        errors: errors.value,
+        analysisResult: analysisResult.value
+      });
+      
+      toast.success('Analiz sonuçları başarıyla uygulandı');
+    };
+    
+    // Başlangıçta çizim varsa yükle
+    onMounted(() => {
+      if (props.initialDrawingSrc) {
+        loadDrawing(props.initialDrawingSrc);
+      }
+    });
+    
+    return {
+      // Refs
+      isLoading,
+      loadingMessage,
+      drawingSrc,
+      drawingLoaded,
+      showAnalysisPane,
+      showVisualizations,
+      fileType,
+      components,
+      dimensions,
+      errors,
+      billOfMaterials,
+      extractedTexts,
+      summary,
+      analysisResult,
+      drawingContainer,
+      drawingImage,
+      modelUrl,
+      showModelViewer,
+      
+      // Computed
+      isImageDrawing,
+      canGenerate3D,
+      errorSeverityClass,
+      analysisTime,
+      analysisConfidence,
+      
+      // Metodlar
+      loadDrawing,
+      onFileSelected,
+      onDrawingLoaded,
+      onDrawingError,
+      analyzeDrawing,
+      extractBOM,
+      detectErrors,
+      extractText,
+      generate3DPreview,
+      toggleAnalysisPane,
+      toggleVisualizations,
+      getBoundingBoxStyle,
+      getSeverityClass,
+      resetViewer,
+      downloadResults,
+      applyResults
+    };
   }
 };
-
-// Pencere boyutu değiştiğinde çalışacak işlev
-const onWindowResize = () => {
-  if (!camera || !renderer || !canvasElement.value) return
-  
-  camera.aspect = canvasElement.value.clientWidth / canvasElement.value.clientHeight
-  camera.updateProjectionMatrix()
-  
-  renderer.setSize(canvasElement.value.clientWidth, canvasElement.value.clientHeight)
-}
-
-// Bileşen oluşturulduğunda
-onMounted(async () => {
-  // Model bilgisini yükle
-  await loadModelInfo()
-  
-  // 3D görüntüleyiciyi ayarla
-  setupViewer()
-  
-  // Modeli yükle
-  if (modelInfo.value) {
-    loadModel()
-  }
-})
-
-// Bileşen kaldırıldığında temizlik yap
-onUnmounted(() => {
-  window.removeEventListener('resize', onWindowResize)
-  
-  // ThreeJS kaynaklarını temizle
-  if (renderer) {
-    renderer.dispose()
-    renderer.forceContextLoss()
-  }
-  
-  if (controls) {
-    controls.dispose()
-  }
-  
-  // AR/VR oturumu varsa sonlandır
-  if (xrSession) {
-    xrSession.end()
-  }
-})
-
-// arOptions.scale değiştiğinde anlık olarak güncelle
-watch(() => arOptions.scale, (newScale) => {
-  if (model) {
-    model.scale.set(newScale, newScale, newScale)
-  }
-})
 </script>
 
-<style lang="scss" scoped>
-.cad-viewer-modal {
-  background-color: var(--bs-body-bg);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  max-height: 90vh;
-  min-height: 70vh;
-  overflow: hidden;
-  width: 100%;
-}
-
+<style scoped>
 .cad-viewer-container {
   display: flex;
-  flex-direction: column;
+  height: calc(90vh - 150px);
+}
+
+.cad-viewer-main {
   flex: 1;
-  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   overflow: hidden;
 }
 
-.cad-viewer-header {
-  align-items: center;
-  background-color: var(--bs-tertiary-bg);
-  border-bottom: 1px solid var(--bs-border-color);
-  display: flex;
-  justify-content: space-between;
-  padding: .75rem 1rem;
-}
-
-.cad-viewer-actions {
-  display: flex;
-}
-
-.cad-viewer-content {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.cad-viewer-loading {
-  align-items: center;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  text-align: center;
-  background-color: rgba(255, 255, 255, 0.8);
-  z-index: 5;
-}
-
-.cad-viewer-error {
-  align-items: center;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  text-align: center;
-  color: var(--bs-danger);
-  background-color: rgba(255, 255, 255, 0.9);
-  z-index: 5;
-}
-
-.cad-canvas-container {
-  width: 100%;
+.cad-viewer-sidebar {
+  width: 320px;
   height: 100%;
-}
-
-.cad-canvas {
-  width: 100%;
-  height: 100%;
-}
-
-.cad-viewer-footer {
-  border-top: 1px solid var(--bs-border-color);
-  padding: .75rem 1rem;
-  max-height: 30vh;
   overflow-y: auto;
+  border-right: 1px solid #dee2e6;
+  background-color: #f8f9fa;
 }
 
-.cad-viewer-tabs {
-  margin-bottom: 0.5rem;
+.cad-viewer-container.with-sidebar .cad-viewer-main {
+  flex: 1;
 }
 
-.cad-viewer-tab-content {
-  padding-top: 0.5rem;
+.drawing-container {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #eaeaea;
+  min-height: 400px;
 }
 
-.ar-instructions, .vr-instructions {
+.drawing-placeholder {
+  flex: 1;
+  background-color: #f8f9fa;
+  border: 2px dashed #ccc;
+  min-height: 400px;
+}
+
+.technical-drawing {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.visualization-layer {
   position: absolute;
-  bottom: 1rem;
-  left: 1rem;
-  right: 1rem;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.component-box {
+  position: absolute;
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.component-label {
+  position: absolute;
+  bottom: -20px;
+  left: 0;
+  background-color: rgba(0, 123, 255, 0.8);
+  color: white;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
   z-index: 10;
 }
 
-/* Ölçüm Çizgisi Stilleri */
-.measurement-line {
-  stroke: var(--bs-primary);
-  stroke-width: 2;
-  stroke-dasharray: 5;
+.model-viewer-container {
+  width: 100%;
+  height: 100%;
 }
 
-.measurement-label {
-  fill: var(--bs-dark);
-  font-size: 12px;
-  text-anchor: middle;
+.model-placeholder {
+  width: 100%;
+  height: 100%;
+  background-color: #f8f9fa;
 }
 
-/* Tab içerik stilleri */
-.tab-pane {
-  display: none;
-}
-
-.tab-pane.active {
-  display: block;
-}
-
-/* Animasyonlar */
-@keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
-}
-
-.measurement-highlight {
-  animation: pulse 2s infinite;
+.sidebar-heading {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: #6c757d;
+  letter-spacing: 0.05rem;
 }
 </style>

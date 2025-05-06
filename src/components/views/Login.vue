@@ -5,16 +5,19 @@
         <img src="@/assets/images/logo.png" alt="METS Logo" class="login-logo" />
       </div>
       <div class="login-form-container">
-        <h1 class="login-title">Giriş Yap</h1>
-        <div v-if="authError" class="alert alert-danger">
+        <h1 class="login-title">{{ isRegistering ? 'Kayıt Ol' : 'Giriş Yap' }}</h1>
+        <div v-if="authError && !isRegistering" class="alert alert-danger">
           {{ authError }}
         </div>
+        <div v-if="registerError && isRegistering" class="alert alert-danger">
+          {{ registerError }}
+        </div>
 
-        <form @submit.prevent="handleLogin" class="login-form">
+        <form v-if="!isRegistering" @submit.prevent="handleLogin" class="login-form">
           <div class="form-group">
             <label for="email">E-posta</label>
             <input
-              type="email"
+              type="text"
               id="email"
               v-model="credentials.email"
               class="form-control"
@@ -67,8 +70,94 @@
           </button>
         </form>
 
+        <form v-else @submit.prevent="handleRegister" class="register-form">
+          <div class="form-group">
+            <label for="name">Ad Soyad</label>
+            <input
+              type="text"
+              id="name"
+              v-model="registerData.name"
+              class="form-control"
+              required
+              placeholder="Ad Soyad"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="email">E-posta</label>
+            <input
+              type="text"
+              id="email"
+              v-model="registerData.email"
+              class="form-control"
+              required
+              placeholder="ornek@sirket.com"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="username">Kullanıcı Adı</label>
+            <input
+              type="text"
+              id="username"
+              v-model="registerData.username"
+              class="form-control"
+              required
+              placeholder="Kullanıcı Adı"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="department">Departman</label>
+            <input
+              type="text"
+              id="department"
+              v-model="registerData.department"
+              class="form-control"
+              required
+              placeholder="Departman"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password">Şifre</label>
+            <div class="password-input-container">
+              <input
+                :type="showPassword ? 'text' : 'password'"
+                id="password"
+                v-model="registerData.password"
+                class="form-control"
+                required
+                placeholder="******"
+              />
+              <button 
+                type="button" 
+                class="password-toggle-btn"
+                @click="togglePasswordVisibility"
+              >
+                <i :class="showPassword ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
+              </button>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            class="btn btn-primary register-btn w-100"
+            :disabled="isLoading"
+          >
+            <span v-if="isLoading">
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              Kayıt yapılıyor...
+            </span>
+            <span v-else>Kayıt Ol</span>
+          </button>
+        </form>
+
         <div class="login-footer">
-          <a href="#" @click.prevent="forgotPassword">Şifremi Unuttum</a>
+          <a href="#" @click.prevent="toggleRegister">
+            {{ isRegistering ? 'Giriş Yap' : 'Kayıt Ol' }}
+          </a>
+          <a v-if="!isRegistering" href="#" @click.prevent="forgotPassword">Şifremi Unuttum</a>
         </div>
       </div>
     </div>
@@ -96,14 +185,21 @@ const credentials = reactive({
 const authError = ref('');
 const isLoading = ref(false);
 const showPassword = ref(false);
+const isRegistering = ref(false);
+const registerData = reactive({ name: '', email: '', username: '', department: '', password: '' });
+const registerError = ref('');
 
 const handleLogin = async () => {
   try {
     isLoading.value = true;
     authError.value = '';
     
-    await authStore.login(credentials.email, credentials.password);
-    
+    // call authStore.login with credentials object and handle result
+    const result = await authStore.login(credentials);
+    if (!result.success) {
+      authError.value = result.error || 'E-posta veya şifre hatalı.';
+      return;
+    }
     // Yönlendirme kontrolü - eğer belirli bir sayfadan yönlendirme varsa oraya git
     const redirectPath = router.currentRoute.value.query.redirect || '/';
     router.push(redirectPath);
@@ -127,11 +223,36 @@ const forgotPassword = async () => {
   
   try {
     isLoading.value = true;
-    await authStore.sendPasswordResetEmail(credentials.email);
+    await authStore.resetPassword(credentials.email);
     alert('Şifre sıfırlama bağlantısı email adresinize gönderildi.');
   } catch (error) {
     authError.value = 'Şifre sıfırlama bağlantısı gönderilemedi. Lütfen tekrar deneyin.';
     console.error('Password reset error:', error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// Toggle between login and register views
+const toggleRegister = () => {
+  isRegistering.value = !isRegistering.value;
+  authError.value = '';
+  registerError.value = '';
+};
+
+// Handle user registration
+const handleRegister = async () => {
+  try {
+    isLoading.value = true;
+    registerError.value = '';
+    const result = await authStore.register(registerData);
+    if (!result.success) {
+      registerError.value = result.error || 'Kayıt sırasında hata oluştu.';
+    }
+    // On success, authStore.register navigates to '/'
+  } catch (error) {
+    console.error('Register error:', error);
+    registerError.value = error.message || 'Kayıt yapılamadı.';
   } finally {
     isLoading.value = false;
   }
@@ -184,6 +305,11 @@ const forgotPassword = async () => {
 }
 
 .login-btn {
+  padding: 10px;
+  font-weight: 500;
+}
+
+.register-btn {
   padding: 10px;
   font-weight: 500;
 }

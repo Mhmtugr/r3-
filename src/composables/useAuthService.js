@@ -31,6 +31,18 @@ export function useAuthService() {
         return { success: false, error: 'E-posta ve şifre giriniz' };
       }
       
+      // Standart admin kullanıcısı için sabit giriş
+      if (email === 'admin' && password === 'admin') {
+        const adminUser = {
+          uid: 'admin',
+          email: 'admin',
+          displayName: 'Admin',
+          role: 'admin',
+          department: 'IT'
+        };
+        return { success: true, user: adminUser };
+      }
+      
       // Firebase ile giriş yap
       if (typeof firebase !== 'undefined' && firebase.auth) {
         try {
