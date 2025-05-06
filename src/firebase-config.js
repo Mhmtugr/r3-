@@ -1,7 +1,8 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { getAnalytics } from "firebase/analytics";
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
+import "firebase/compat/firestore";
+import "firebase/compat/storage";
+import "firebase/compat/analytics";
 
 // MehmetEndustriyelTakip uygulaması için Firebase yapılandırması
 const firebaseConfig = {
@@ -13,17 +14,15 @@ const firebaseConfig = {
   appId: "1:278521463542:web:ee3f34dd1c8830f664e2d7"
 };
 
-// Firebase başlatma
-const app = initializeApp(firebaseConfig);
+// Firebase compat başlatma
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
+const analytics = firebase.analytics();
 
-// Firestore, Storage ve Analytics servisleri
-const db = getFirestore(app);
-const storage = getStorage(app);
-let analytics = null;
-
-// Analytics'i sadece tarayıcı ortamında başlat
+// Expose firebase namespace for useAuthService hook
 if (typeof window !== 'undefined') {
-  analytics = getAnalytics(app);
+  window.firebase = firebase;
 }
 
 export { app, db, storage, analytics };
