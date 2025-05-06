@@ -1,0 +1,119 @@
+MehmetEndustriyelTakip Uygulamasının Geliştirilmesi
+Amaç:
+
+Bu prompt, MehmetEndustriyelTakip adlı bir uygulamanın geliştirilmesi için gerekli tüm istek ve talepleri tanımlar. Uygulama, orta ölçekli bir sanayi üretim firmasının üretim süreçlerini takip eden, verileri analiz eden, görselleştiren, raporlayan ve yapay zeka desteğiyle öngörülerde bulunan tam kapsamlı, profesyonel, hatasız, modern ve kusursuz bir sistem olacaktır. Uygulama, tüm fonksiyonları, butonları, gereksinimleri eksiksiz, tam işlevsel ve tam profesyonel bir şekilde karşılamalıdır. Geliştirme süreci, kodlama ve uygulama geliştirme konusunda tamamen tecrübesiz bir kullanıcıyı yönlendirecek şekilde, adım adım ve rehber bir yaklaşımla yürütülmelidir. Yapay zeka, dünyanın en iyi uygulama geliştiricisi ve kodlama uzmanı gibi davranarak, en doğru ve mantıklı kararları verecek, tüm süreci bütüncül bir perspektifle yönetecek ve uygulamayı eksiksiz, hatasız, tam kapsamlı, modern, sade ve profesyonel bir şekilde çalışır hale getirecektir.
+
+Genel Gereksinimler:
+
+Kapsam ve İşlevsellik: Uygulama, aşağıda belirtilen tüm fonksiyonları, butonları ve gereksinimleri eksiksiz, hatasız, tam işlevsel, tam kapsamlı ve profesyonel bir şekilde karşılamalıdır. Kodlar, örnek veya test amaçlı değil, tam kapsamlı üretim ortamına uygun olmalıdır.
+Kullanıcı Deneyimi: Geliştirme süreci, kodlama bilgisi olmayan bir kullanıcıyı adım adım yönlendirmeli, her aşamada rehber olmalı ve kullanıcıyı karmaşık teknik detaylarla yormamalıdır.
+Hata Önleme: Mevcut kod yapısı, build sırasında hata vermeyen bir yapıda korunmalı; düzenleme, geliştirme ve iyileştirme işlemleri bu yapıya zarar vermeden yapılmalıdır. Build süreçlerinde herhangi bir sorun yaşanmamalıdır.
+Modern ve Sade Tasarım: Uygulama, sade, modern ve profesyonel bir yapıda geliştirilmeli; gereksiz veya tekrar eden kodlar eklenmemeli, mevcut sade ve modern yapı korunarak iyileştirmeler yapılmalıdır.
+Profesyonellik: Tüm düzenleme, geliştirme, sadeleştirme, modernleştirme ve fonksiyonelleştirme işlemleri, dünyanın en iyi uygulama geliştiricisi standartlarında, kompleks ve bütüncül bir yaklaşımla gerçekleştirilmelidir.
+Uygulama Kapsamı ve Fonksiyonları:
+
+1. Genel İşlevsellik ve Amaç:
+
+Uygulama, orta ölçekli bir sanayi üretim firmasının (yıllık ~2500 adet orta gerilim anahtarlama ekipmanı üreten) üretim süreçlerini takip edecek, verileri analiz edecek, görselleştirecek, raporlayacak ve yapay zeka desteğiyle öngörülerde bulunacaktır.
+Sistem, satış, planlama, üretim, satın alma, elektrik proje tasarımı, mekanik tasarım, iç montaj, mekanik üretim, genel montaj, kablaj ve test birimlerinin süreçlerini entegre bir şekilde yönetecektir.
+Amaç, mevcut manuel süreçlerdeki (Excel tabanlı, insan hatalarına dayalı) aksaklıkları ortadan kaldırarak tüm birimleri tek bir platform üzerinden koordine etmek, üretim süreçlerini otomatikleştirmek ve verimliliği artırmaktır.
+2. Ana Özellikler ve İşlevler:
+
+a. Sipariş Girişi ve Veri Yönetimi:
+
+Satış Birimi İşlevi: Satış birimi, yeni bir siparişi sisteme tüm teknik gerekliliklerle (hücre tipi: CB, LB, FL, RMU; koruma rölesi, çalışma gerilimi, nominal akım, kontrol gerilimi, akım-gerilim trafo bilgileri) girecek. Sistem, veri girişi için kullanıcı dostu bir ekran sunacak ve gerekli tüm bilgileri tek tek seçtirerek eksik veya hatalı girişleri önleyecek.
+Hata Tespiti: Sistem, girilen sipariş verilerini önceki siparişlerle ve mevcut verilerle kıyaslayarak eksiklik veya hata tespit edecek, satış birimini uyaracak ve düzeltme talep edecektir.
+b. Stok ve Malzeme Yönetimi:
+
+Stok Kontrolü: Sistem, Canias ERP sisteminden API aracılığıyla veri çekerek stok kontrolü yapacak. Yeni sipariş için gerekli malzeme listesini otomatik oluşturacak ve stokta bulunan malzemeleri bu sipariş için ayıracak.
+Kritik Özellik: Eğer bir malzeme başka bir sipariş için ayrılmışsa, sistem bu malzemeyi stokta var olarak görmeyecek, böylece mevcut malzeme eksikliği sorunları (örneğin, B01 deposunda malzeme görünüp başka sipariş için ayrıldığı fark edilmeme durumu) ortadan kalkacak.
+Eksik Malzeme Bildirimi: Eksik malzemeler tespit edilirse, sistem satın alma birimine otomatik bildirim gönderecek ve eksik malzemelerin sipariş edilmesini talep edecektir.
+Satın Alma Süreci: Satın alma birimi, eksik malzemelerin tedarik süreciyle ilgili günlük veri girişi yapacak. Sistem, bu verileri analiz ederek üretim sürecini etkileyen tedarik sorunlarını düzenli olarak takip edecek ve raporlayacak.
+Satın Alma Kolaylığı: Sistem, mevcut satın alma kadrosunun sınırlı kapasitesine rağmen süreci kolaylaştıracak, satın alma biriminin daha verimli çalışmasını sağlayacaktır.
+c. Üretim Planlaması ve Takibi:
+
+Otomatik Planlama: Sistem, makine öğrenimiyle geçmiş üretim verilerinden öğrenerek bir hücrenin üretim süresini tahmin edecek. Yeni sipariş için gerekli üretim süresini hesaplayacak, mevcut üretim programını dikkate alarak hangi tarihler arasında üretim yapılabileceğini planlama birimine sunacak. Planlama birimi onayıyla sipariş üretim planına eklenecek.
+Üretim Şefi Veri Girişi: Üretim şefleri, günlük planlama listesindeki görevleri tamamlayıp tamamlamadıklarını sisteme girecek. Tamamlanmayan görevler için bir neden belirtilecek. Sistem, eksik kalan işin tamamlanması için gerekli ek mesai süresini otomatik hesaplayacak veya termin tarihinde gecikme olacaksa uyarı verecektir.
+Gecikme Takibi: Gecikmeler için sistem, sarı (küçük gecikme) veya kırmızı (çözülemeyen gecikme) uyarılar oluşturacak. Sorun çözüldüğünde uyarı yeşile dönecek, ancak sistemden kaldırılmayacak; böylece sorun geçmişi izlenebilir olacak.
+d. Not ve Uyarı Sistemi:
+
+Not Girişi: Tüm birimler, siparişlere tıklayarak ek not veya uyarı girebilecek. Notlar, sarı (orta önem) veya kırmızı (yüksek önem) renklerle işaretlenecek ve ana ekranda siparişin sağ üst köşesinde ünlem işaretleriyle görünecek.
+Uyarı Atama: Uyarılar, sorumlu birime atıf yapılarak girilecek. İlgili birim, 3 saat içinde yanıt verecek (örneğin: “Sorun çözüldü”, “2 gün içinde çözülecek”, “Sorun başka birimle ilgili”, “Ek süre talep ediyorum”, “Üst yönetim kararı gerekli”). Yanıt verilmezse sistem uyarıyı tekrar bildirecek.
+Öğrenme ve Raporlama: Sistem, not ve uyarı verilerinden öğrenerek tekrar eden sorunları, çözülemeyen sorunları veya hangi birimlerin sorunları çözdüğünü analiz edecek ve üst yönetime raporlar sunacak.
+e. Yapay Zeka Desteği:
+
+Chatbot Arayüzü: Her ekranın sağ alt köşesinde bir chatbot simgesi olacak. Kullanıcılar, belirli bir siparişin durumunu (örneğin, “Sipariş X ne durumda?”) sorabilecek. Yapay zeka, sistemi tarayarak detaylı bilgiler sunacak (örneğin: “Malzemeler sipariş edildi, termin tarihleri şu şekilde, hücre montajı ve testler şu tarihlerde planlandı, süreç planlandığı gibi ilerliyor”).
+Sorgu Türleri:
+Sipariş Sorguları: Belirli bir siparişin detaylarını (malzeme durumu, üretim planı, gecikmeler) gösterecek.
+Stok Sorguları: Düşük stok seviyeleri gibi kritik bilgileri sağlayacak.
+Planlama Sorguları: Üretim planlaması hakkında özet bilgiler verecek.
+Eğitim ve Öğrenme: Yapay zeka, büyük dil modeli (LLM) benzeri bir yapıya sahip olacak, kullanıcı sorgularını anlayacak ve en doğru cevapları verecek. Makine öğrenimiyle sürekli öğrenerek 6 ay-1 yıl içinde fabrika süreçlerine tam hakim olacak.
+Teknik Destek: Sistem, fabrika teknik verileriyle (dokümanlar, teknik resimler) eğitilecek. Kullanıcılar teknik sorular sorabilecek, sistem teknik değerlendirmeler, hesaplamalar ve teknik resim yorumları yapabilecek.
+Satın Alma Analizi: Satın alma siparişleri ve faturalarını inceleyecek, anormal durumları (örneğin, sınırlamaların dışına çıkma) tespit ederek uyarı verecek.
+f. Raporlama ve Analiz:
+
+Rapor Türleri: Sistem, 1, 3, 6 ve 12 aylık raporlar oluşturabilecek. Raporlar, üretim süreçleri, gecikmeler, malzeme eksiklikleri ve birim performanslarını içerecek.
+Performans Değerlendirmesi: Sorunları çözen birimler ve kişiler yıl sonunda artı puan alacak, sürekli gecikmeye neden olan birimler eksi puanla değerlendirilecek. Bu veriler, üst yönetime sunulacak.
+Öngörüler: Yapay zeka, geçmiş verilerden öğrenerek teslim tarihleri, malzeme eksiklikleri ve birim performansları hakkında öngörülerde bulunacak.
+g. Kullanıcı Arayüzü ve Görselleştirme:
+
+Ana Ekran: Tüm siparişler liste halinde gösterilecek. Siparişlerin durumu, sağ tarafta görsellerle (sarı/kırmızı/yeşil uyarılar) belirtilecek.
+Not Görünürlüğü: Sisteme girilen notlar ve uyarılar, ana ekranda siparişlerin sağ üst köşesinde renkli ünlem işaretleriyle görünecek.
+Tek Ekrandan Yönetim: Kullanıcılar, hangi işin nerede olduğunu, gecikmeleri, birim performanslarını ve üretim süreçlerini tek bir ekrandan görebilecek veya detaylı raporlar talep edebilecek.
+3. Teknik Gereksinimler ve Uygulama Detayları:
+
+a. Kod Yapısı ve Geliştirme İlkeleri:
+
+Mevcut Yapının Korunması: Mevcut kod yapısı, build sırasında hata vermeyen, sade ve modern bir yapıdadır. Tüm düzenlemeler, bu yapıyı koruyarak yapılmalı; mevcut kapsamda eksiltme veya gereksiz karmaşıklık eklenmemelidir.
+Hata Önleme: Geliştirme, mevcut build yapısını bozmayacak şekilde gerçekleştirilmeli. Her build işlemi sorunsuz tamamlanmalıdır.
+Temiz Kod: Gereksiz veya tekrar eden kodlar eklenmemeli, kodlar sade, modern, okunabilir ve profesyonel olmalıdır.
+Adlandırma Kuralları: Tüm dosya ve bileşenlerde tutarlı bir adlandırma kuralı (örneğin, kebab-case: firebase-service.js veya camelCase: firebaseService.js) kullanılmalı. Bu, Firebase servis sorununda görülen tutarsızlıkları önleyecektir.
+b. SASS ve Bağımlılık Yönetimi:
+
+SASS Geçiş Planı: Tüm SCSS dosyaları, @import yerine modern @use ve @forward yönergelerini kullanacak şekilde sistematik olarak güncellenmeli. Bu, modülerlik ve bakım kolaylığı sağlayacaktır.
+Bağımlılık Güncellemeleri: package.json dosyası, en son sass ve ilgili paket sürümleriyle uyumlu olacak şekilde güncellenmeli. Modern SASS özelliklerinin desteklendiğinden emin olunmalı.
+c. Kod Aktarımı:
+
+.cursor\rules\örnekindex dosyasındaki kodun kapsamı ve işlevselliği, R3 klasöründeki tüm dosyalara eksiksiz aktarılmalı. Bu süreçte gerekli kontroller yapılmalı, kapsam ve işlevsellik kaybı yaşanmamalıdır.
+d. Yapay Zeka Entegrasyonu:
+
+Yapay Zeka Modeli: Uygulama, bir büyük dil modeli (LLM) ile entegre edilecek. LLM, Grok gibi bir model olabilir veya Open AI, DeepSeek gibi açık kaynaklı modellerden biri yerel olarak kullanılabilir. API anahtarı ile doğrudan Grok’un sorgulama yeteneklerinden faydalanılabilir.
+Eğitim Süreci: Sistem, fabrika teknik dokümanları, teknik resimler ve geçmiş verilerle eğitilecek. Eğitim, makine öğrenimi yerine Grok’un mevcut yetenekleri üzerine inşa edilebilir, böylece ek eğitim maliyeti azaltılır. Grok, teknik sorulara yanıt verebilecek, teknik hesaplamalar yapabilecek ve teknik resimlere yorum yapabilecek şekilde özelleştirilecek.
+Süreç Hakimiyeti: 6 ay-1 yıl içinde yapay zeka, fabrika süreçlerine tam hakim olacak, aksaklıklara doğru yorumlar yapacak ve üretim süreçlerini tahmin edebilecektir.
+Modüler Yapay Zeka: Farklı sayfalarda veya görevlerde farklı yapay zeka modelleri kullanılabilir (örneğin, teknik analiz için bir model, planlama için başka bir model). Yapay zeka entegrasyonu, uygulamanın son aşamasında tam kapsamlı ve profesyonel bir şekilde yapılacak, ancak geliştirme sürecinde bu özellik her zaman planlanacak.
+Unutulmaması Gereken: Yapay zeka, MehmetEndustriyelTakip uygulamasının en can alıcı, cezbedici ve fark yaratan özelliği olacaktır. Bu nedenle, yapay zeka entegrasyonu asla göz ardı edilmemeli, her zaman tam kapsamlı ve profesyonel bir şekilde kurgulanmalıdır.
+4. Geliştirme Süreci ve Adım Adım Yaklaşım:
+
+a. Adım Adım Geliştirme:
+
+1. Planlama ve Analiz: Gereksinimler detaylı bir şekilde analiz edilecek, kullanıcı ihtiyaçlarına göre bir yol haritası oluşturulacak.
+2. Arayüz Tasarımı: Kullanıcı dostu, sade ve modern bir arayüz tasarlanacak. Ana ekran, sipariş listesi, uyarılar ve chatbot arayüzü önceliklendirilecek.
+3. Backend Geliştirme: Canias ERP ile API entegrasyonu, stok yönetimi, sipariş girişi ve planlama modülleri geliştirilecek.
+4. Yapay Zeka Entegrasyonu: Grok veya seçilen LLM, sisteme entegre edilecek ve teknik verilerle eğitilecek.
+5. Test ve Optimizasyon: Tüm modüller test edilecek, hatalar giderilecek, performans optimize edilecek.
+6. Dağıtım: Uygulama, şirket bilgisayarlarında veya çevrimiçi bir platformda çalışacak şekilde dağıtılacak.
+b. Kullanıcı Rehberliği: Her aşamada, kodlama bilgisi olmayan kullanıcıya süreç açıklanacak, hangi adımların neden atıldığı net bir şekilde anlatılacak. Teknik terimler sade bir şekilde ifade edilecek.
+
+5. Özel Notlar ve Kısıtlamalar:
+
+Cihaz Arıza Takibi: Şu an için cihazların anlık arıza takibi istenmemektedir. Bu özellik, ilerleyen aşamalarda değerlendirilebilir.
+Çevrimdışı Çalışma: Uygulama, şirket bilgisayarı ve çevrimiçi siteler üzerinden geliştirileceği için uygun bir model seçilmeli. Çevrimdışı çalışabilirlik, ilerleyen aşamalarda değerlendirilebilir.
+Yapay Zeka Odaklılık: Yapay zeka, uygulamanın en kritik özelliği olacak. Geliştirme sürecinde bu özellik her zaman planlanmalı, son aşamada tam kapsamlı bir şekilde entegre edilmelidir.
+6. Beklenen Sonuç:
+
+Uygulama, tüm birimleri entegre eden, manuel süreçleri otomatikleştiren, yapay zeka desteğiyle öngörülerde bulunan, kullanıcı dostu, sade, modern ve profesyonel bir sistem olacaktır.
+Sistem, üretim süreçlerini gerçek zamanlı takip edecek, gecikmeleri önleyecek, malzeme yönetimini optimize edecek ve yöneticilere kapsamlı raporlar sunacaktır.
+Yapay zeka, kullanıcı sorgularına anında yanıt verecek, teknik analizler yapacak ve süreçlere hakimiyet kazanarak fabrikanın verimliliğini artıracaktır.
+Talimatlar Yapay Zeka Modeline:
+
+Yukarıda ki maddelerden eğer eksiksiz bir şekilde sağlandığını teyit edersen, o madde ile ilgili herhangi bir işlem yapmana gerek yok, sadece daha geliştirilebilri bir hale getirilmesi için yapılması gerekenler olursa önerilerde bulunabilirsin fakat eğer ilgili maddenin gayet iyi durumda olduğunu düşünürsen ilgili madde ile ilgili bir işlem yapmadan diğer maddelere geçebilirsin.
+
+Bu prompt’a sadık kalın, tüm gereksinimleri eksiksiz uygulayın.
+Kodlama sürecinde mevcut sade ve modern yapıyı koruyun, gereksiz karmaşıklık eklemeyin.
+Her adımı, kodlama bilgisi olmayan bir kullanıcıya açıklayarak ilerleyin.
+Build süreçlerinde hata oluşmasını önleyin, mevcut build yapısını bozmayın.
+Yapay zeka entegrasyonunu her zaman planlayın, son aşamada tam kapsamlı bir şekilde uygulayın.
+Uygulamayı, dünyanın en iyi geliştiricisi gibi tasarlayın; kompleks, bütüncül ve geniş perspektifli bir yaklaşımla çalışın.
+Proje Adı: MehmetEndustriyelTakip
+
+Hedef: Tam kapsamlı, profesyonel, hatasız, modern, sade ve yapay zeka destekli bir endüstriyel takip uygulaması geliştirmek.
