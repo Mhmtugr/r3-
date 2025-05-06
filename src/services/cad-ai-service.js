@@ -11,7 +11,7 @@
 
 import { ref } from 'vue';
 import { aiService } from './ai-service';
-import { logger } from '@/utils/logger';
+import logger from '@/utils/logger';
 
 class CADAnalysisService {
   constructor() {
