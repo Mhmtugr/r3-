@@ -155,8 +155,9 @@ export default defineConfig({
         sassOptions: {
           outputStyle: 'compressed',
           charset: false,
-          // Kullanımdan kaldırılmış özellikleri engelleme
+          // Uyarıları bastır ve hata mesajları gösterme
           quietDeps: true,
+          quiet: true,
           // Uyarıları hataya dönüştürmeyi engelleme
           strict: false,
           // İçe aktarma çözümlemesini iyileştirme
@@ -167,7 +168,7 @@ export default defineConfig({
           ],
           // Legacy API kullanımını bastır
           legacyWarning: false,
-          // SASS 2.0 uyumluluğunu zorunlu kıl
+          // SASS 2.0 uyumluluğunu zorunlu kılma
           futureWarning: false
         }
       }
