@@ -29,7 +29,7 @@
       <AppFooter />
     </div>
     <AIChatbotButton v-if="isAuthenticated" />
-    <AIChatModal v-if="isAIChatModalOpen" @close="closeAIChatModal" />
+    <AIChatModal v-if="isAIChatModalOpen" @close="closeAIChatModal" :isVisible="isAIChatModalOpen" />
     <Notifications />
   </div>
 </template>
@@ -82,11 +82,21 @@ const toggleDarkMode = () => {
   isDarkMode.value = !isDarkMode.value;
   localStorage.setItem('darkMode', isDarkMode.value);
   document.body.classList.toggle('dark-mode', isDarkMode.value);
+  
+  // Dark mode değişikliği olayı yayınla
+  const event = new CustomEvent('dark-mode-toggle', { 
+    detail: { isDarkMode: isDarkMode.value } 
+  });
+  document.dispatchEvent(event);
 };
 
-const handleLogout = () => {
-  authStore.logout();
-  router.push({ name: 'Login' });
+const handleLogout = async () => {
+  try {
+    await authStore.logout();
+    router.push({ name: 'Login' });
+  } catch (error) {
+    console.error('Çıkış yapılırken hata:', error);
+  }
 };
 
 // Provide ile alt bileşenlere aktarılması
@@ -97,14 +107,20 @@ provide('toggleDarkMode', toggleDarkMode);
 
 // Sayfa yüklendiğinde dark mode durumunu kontrol et
 onMounted(() => {
+  // Sayfa yüklenirken dark mode ayarı
   document.body.classList.toggle('dark-mode', isDarkMode.value);
   
   // Auth durumunu kontrol et, değilse ve development modunda ise otomatik login
-  if (!isAuthenticated.value && import.meta.env.DEV) {
-    console.log('Development ortamında otomatik giriş yapılıyor...');
-    authStore.demoLogin().catch(error => {
-      console.error('Otomatik giriş başarısız:', error);
-    });
+  if (!isAuthenticated.value) {
+    console.log('Otomatik giriş kontrolü yapılıyor...');
+    
+    // Demo modu veya URL'de demo parametresi varsa
+    if (window.location.search.includes('demo=true') || import.meta.env.DEV) {
+      console.log('Development ortamında otomatik giriş yapılıyor...');
+      authStore.demoLogin().catch(error => {
+        console.error('Otomatik giriş başarısız:', error);
+      });
+    }
   }
 });
 
@@ -128,6 +144,7 @@ $sidebar-collapsed-width: 70px;
   display: flex;
   min-height: 100vh;
   overflow: hidden;
+  background-color: var(--bg-content, #f5f7fa);
   
   .main-content {
     flex: 1;
@@ -137,7 +154,6 @@ $sidebar-collapsed-width: 70px;
     margin-left: $sidebar-width;
     transition: margin-left 0.3s ease, width 0.3s ease;
     min-height: 100vh;
-    background-color: var(--bg-content, #f5f7fa);
     padding: 0;
     
     .content {
@@ -190,48 +206,46 @@ $sidebar-collapsed-width: 70px;
       width: 100% !important; /* Full width on mobile */
     }
   }
-}
-
-/* AI Chatbot stili - ornekindex.html'den */
-.ai-chatbot {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 1000;
-}
-
-.ai-chatbot-btn {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background-color: var(--secondary-color, #3498db);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-  transition: all 0.3s;
   
-  &:hover {
-    transform: scale(1.1);
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+  .app-container:not(.sidebar-collapsed) .main-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1029;
   }
 }
 
-.notification-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  background-color: var(--danger-color, #e74c3c);
-  color: white;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Dark mode özellikleri */
+.dark-mode {
+  --bg-content: #121212;
+  --text-color: #e2e2e2;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --bg-card: #1e1e1e;
+  --text-muted: #a7a7a7;
+  
+  .card {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+  }
+  
+  .card-header {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+  }
+  
+  .table {
+    color: var(--text-color);
+  }
+  
+  .custom-table th {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  .loading-component {
+    color: var(--text-color);
+  }
 }
 </style>

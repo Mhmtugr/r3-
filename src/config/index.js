@@ -6,42 +6,102 @@
 // Varsayılan yapılandırma değerleri
 const defaults = {
   appName: "MehmetEndüstriyelTakip",
-  version: "2.0.0", // Sürümü güncelleyelim
-  // Ortamı import.meta.env.MODE'dan alacağız
-  apiUrl: '/api', // Varsayılan olarak göreceli yol
+  version: "2.1.0", // Sürüm güncellendi
+  apiUrl: '/api', 
   useLocalStorage: true,
-  debugMode: import.meta.env.DEV, // Geliştirme modunda debug aktif
+  debugMode: import.meta.env.DEV, 
 
-  // AI Yapılandırması (API Anahtarı .env'den gelmeli)
+  // AI Yapılandırması (ai-config.js'den gelenler öncelikli olacak)
   ai: {
     enabled: true,
-    geminiApiKey: null, // .env'den VITE_GEMINI_API_KEY olarak okunacak
-    modelName: 'gemini-1.5-pro-latest', // .env'den VITE_AI_MODEL_NAME olarak okunacak
-    temperature: 0.7,
-    maxTokens: 1500,
-    systemPrompt: `
-      Sen MehmetEndüstriyelTakip sisteminin yapay zeka asistanısın.
-      Orta Gerilim Hücre Üretim Takip Sistemi hakkında uzman bir asistan olarak görev yapıyorsun.
-      Her zaman doğru, net ve teknik bilgileri içeren yanıtlar vermelisin.
-      Sistemdeki sipariş durumları, malzeme stokları ve teknik dokümantasyon hakkında detaylı bilgi sahibisin.
-      Eğer sorular net değilse, daha net bilgi iste ve kullanıcıyı yönlendir.
-    `
+    activeService: 'auto', // 'auto', 'gemini', 'openRouter', 'demo'
+    systemPrompt: `Sen MehmetEndüstriyelTakip sisteminin yapay zeka asistanısın.
+                   Orta Gerilim Hücre Üretim Takip Sistemi hakkında uzman bir asistan olarak görev yapıyorsun.
+                   Her zaman doğru, net ve teknik bilgileri içeren yanıtlar vermelisin.
+                   Sistemdeki sipariş durumları, malzeme stokları ve teknik dokümantasyon hakkında detaylı bilgi sahibisin.
+                   Eğer sorular net değilse, daha net bilgi iste ve kullanıcıyı yönlendir.`,
+    
+    // Gemini özel ayarları (ai-service.js bunları kullanacak)
+    geminiApiKey: null, 
+    geminiApiUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
+    modelName: 'gemini-1.5-pro', // ai-service.js içinde 'gemini-1.5-pro-latest' idi, tutarlılık için güncellendi.
+    geminiGenerationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 2048, 
+        topP: 0.8,
+        topK: 40,
+    },
+    geminiSafetySettings: [
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    ],
+
+    // OpenRouter özel ayarları (ai-service.js bunları kullanacak)
+    openRouterApiKey: null,
+    openRouterApiUrl: 'https://openrouter.ai/api/v1',
+    openRouterDefaultModels: {
+      chat: 'openai/gpt-3.5-turbo', 
+      instruct: 'google/gemini-flash-1.5',
+    },
+    openRouterGenerationConfig: { // ai-service.js'de kullanılan parametreler eklendi
+        temperature: 0.7,
+        maxTokens: 2048,
+        topP: 0.8,
+    },
+    openRouterSiteUrl: 'https://mehmetendustriyel.com', // ai-config.js'den alındı
+    openRouterAppName: 'MehmetEndustriyelTakip', // ai-config.js'den alındı
+
+    // Kullanıcıya sunulacak AI modelleri
+    availableModels: {
+      'gemini-1.5-flash': {
+        key: 'gemini-1.5-flash',
+        name: 'Gemini 1.5 Flash',
+        service: 'gemini',
+        capabilities: ['Genel Sohbet', 'Hızlı Yanıt'],
+        description: 'Google tarafından geliştirilen hızlı ve verimli model.',
+        isDefault: true, // Bu model varsayılan olarak seçilsin mi?
+      },
+      'gemini-1.5-pro': {
+        key: 'gemini-1.5-pro',
+        name: 'Gemini 1.5 Pro',
+        service: 'gemini',
+        capabilities: ['Detaylı Analiz', 'Uzun Metinler'],
+        description: 'Google tarafından geliştirilen daha kapsamlı ve güçlü model.',
+      },
+      'openrouter-gpt3.5-turbo': {
+        key: 'openrouter-gpt3.5-turbo',
+        name: 'GPT-3.5 Turbo (OpenRouter)',
+        service: 'openRouter',
+        modelId: 'openai/gpt-3.5-turbo', // OpenRouter için model ID'si
+        capabilities: ['Genel Sohbet', 'Popüler Model'],
+        description: 'OpenAI'nin popüler ve dengeli modeli (OpenRouter üzerinden).',
+      },
+      'openrouter-gemini-flash': {
+        key: 'openrouter-gemini-flash',
+        name: 'Gemini Flash (OpenRouter)',
+        service: 'openRouter',
+        modelId: 'google/gemini-flash-1.5',
+        capabilities: ['Hızlı Yanıt', 'Google Kalitesi'],
+        description: 'Google Gemini Flash modeli (OpenRouter üzerinden).',
+      },
+    },
+    defaultModelKey: import.meta.env.VITE_AI_DEFAULT_MODEL_KEY || 'gemini-1.5-flash', // Yukarıdaki availableModels'dan bir key
   },
 
-  // Firebase Yapılandırması (Anahtarlar .env'den gelmeli)
   firebase: {
-    apiKey: null,           // .env ->    VITE_FIREBASE_API_KEY
-    authDomain: null,       // .env -> VITE_FIREBASE_AUTH_DOMAIN
-    projectId: null,        // .env -> VITE_FIREBASE_PROJECT_ID
-    storageBucket: null,    // .env -> VITE_FIREBASE_STORAGE_BUCKET
-    messagingSenderId: null,// .env -> VITE_FIREBASE_MESSAGING_SENDER_ID
-    appId: null,            // .env -> VITE_FIREBASE_APP_ID
-    measurementId: null     // .env -> VITE_FIREBASE_MEASUREMENT_ID (Opsiyonel)
+    apiKey: null,          
+    authDomain: null,      
+    projectId: null,       
+    storageBucket: null,   
+    messagingSenderId: null,
+    appId: null,           
+    measurementId: null    
   },
 
-  // Loglama Yapılandırması
   log: {
-    level: import.meta.env.PROD ? 'WARN' : 'DEBUG', // Prod'da WARN, dev'de DEBUG
+    level: import.meta.env.PROD ? 'WARN' : 'DEBUG', 
     enableConsole: true,
     enableMemory: !import.meta.env.PROD,
     maxMemoryEntries: 500,
@@ -52,11 +112,13 @@ const defaults = {
     }
   },
   
-  // Demo Modu (Otomatik olarak geliştirme ortamında aktif)
   useDemoMode: import.meta.env.DEV 
 };
 
-// .env dosyasından gelen değerleri oku ve birleştir
+// .env ve ai-config.js dosyasından gelen değerleri oku ve birleştir
+// ai-config.js içeriği burada doğrudan kullanılmayacak, çünkü ai-service.js zaten kendi içinde yönetiyor.
+// Ancak bazı temel ayarlar .env üzerinden okunabilir.
+
 const config = {
   ...defaults,
   environment: import.meta.env.MODE || 'development',
@@ -66,9 +128,14 @@ const config = {
   
   ai: {
       ...defaults.ai,
+      activeService: import.meta.env.VITE_AI_ACTIVE_SERVICE || defaults.ai.activeService,
       geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || defaults.ai.geminiApiKey,
-      modelName: import.meta.env.VITE_AI_MODEL_NAME || defaults.ai.modelName,
-      // Diğer AI ayarları da .env'den okunabilir
+      geminiApiUrl: import.meta.env.VITE_GEMINI_API_URL || defaults.ai.geminiApiUrl,
+      modelName: import.meta.env.VITE_AI_MODEL_NAME || defaults.ai.modelName, 
+      openRouterApiKey: import.meta.env.VITE_OPENROUTER_API_KEY || defaults.ai.openRouterApiKey,
+      openRouterApiUrl: import.meta.env.VITE_OPENROUTER_API_URL || defaults.ai.openRouterApiUrl,
+      defaultModelKey: import.meta.env.VITE_AI_DEFAULT_MODEL_KEY || defaults.ai.defaultModelKey,
+      availableModels: defaults.ai.availableModels,
   },
   
   firebase: {
@@ -92,10 +159,6 @@ const config = {
         level: import.meta.env.VITE_REMOTE_LOGGING_LEVEL || defaults.log.remote.level,
     }
   }
-  // R3'teki modules etkinleştirme durumu kaldırıldı, bu genellikle router veya özellik bayrakları ile yönetilir.
 };
 
-// Yapılandırmayı dondurarak değiştirilmesini engelle (isteğe bağlı)
-// Object.freeze(config);
-
-export default config; 
+export default config;

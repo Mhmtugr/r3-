@@ -32,7 +32,7 @@
         </li>
         <li class="nav-item">
           <!-- Corrected link to point to the specific materials view -->
-          <router-link class="nav-link" to="/inventory/materials" active-class="active">
+          <router-link class="nav-link" to="/inventory" active-class="active">
             <i class="bi bi-box-seam"></i>
             <span v-if="!isCollapsed">Malzeme Yönetimi</span>
           </router-link>
@@ -89,19 +89,21 @@ defineProps({
 
 <style lang="scss" scoped>
 // Eski @import yerine modern @use kullanımı
-@use "../../styles/base/_variables" as vars;
+// Değişken tanımlamaları için doğrudan erişim sağlıyoruz
+$sidebar-width: 250px;
+$sidebar-collapsed-width: 70px;
 
 .sidebar {
-  width: vars.$sidebar-width;
+  width: $sidebar-width;
   height: 100vh;
   position: fixed;
   top: 0;
   left: 0;
-  background-color: var(--primary-color, #2c3e50); // Match ornekindex.html
-  color: rgba(255, 255, 255, 0.8); // Match ornekindex.html
+  background-color: var(--primary-color, #2c3e50);
+  color: rgba(255, 255, 255, 0.8);
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease, left 0.3s ease; // Added left transition
+  transition: width 0.3s ease, left 0.3s ease;
   overflow-x: hidden;
   z-index: 1030; // Ensure it's above header
 
@@ -119,7 +121,7 @@ defineProps({
       margin-bottom: 0.5rem;
 
       .logo-icon, .logo-icon-sm {
-        height: 30px; // Adjust as needed
+        height: 30px;
         margin-right: 10px;
       }
        .logo-icon-sm {
@@ -138,7 +140,7 @@ defineProps({
       margin: 0;
       font-size: 0.8rem;
       white-space: nowrap;
-      color: rgba(255, 255, 255, 0.6); // Match ornekindex.html muted style
+      color: rgba(255, 255, 255, 0.6);
     }
   }
 
@@ -148,23 +150,23 @@ defineProps({
     padding-top: 1rem;
 
     .nav-link {
-      color: rgba(255, 255, 255, 0.8); // Match ornekindex.html
-      margin: 0.2rem 0.75rem; // Match ornekindex.html spacing (approx)
-      border-radius: 5px; // Match ornekindex.html
-      padding: 0.75rem 1rem; // Adjusted padding for better look
+      color: rgba(255, 255, 255, 0.8);
+      margin: 0.2rem 0.75rem;
+      border-radius: 5px;
+      padding: 0.75rem 1rem;
       display: flex;
       align-items: center;
       white-space: nowrap;
       transition: background-color 0.2s ease, color 0.2s ease;
 
       i {
-        margin-right: 10px; // Match ornekindex.html
+        margin-right: 10px;
         font-size: 1.1rem;
-        width: 20px; // Icon width alignment
+        width: 20px;
         text-align: center;
       }
 
-      &:hover, &.active { // Match ornekindex.html active/hover
+      &:hover, &.active {
         background-color: rgba(255, 255, 255, 0.1); 
         color: white;
       }
@@ -175,7 +177,7 @@ defineProps({
     padding: 1rem;
     text-align: center;
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.6); // Match ornekindex.html muted style
+    color: rgba(255, 255, 255, 0.6);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     white-space: nowrap;
 
@@ -186,10 +188,10 @@ defineProps({
 
   // Collapsed state
   &.collapsed {
-    width: vars.$sidebar-collapsed-width;
+    width: $sidebar-collapsed-width;
 
     .sidebar-header {
-      padding: 1.25rem 0.5rem; // Adjust padding for collapsed state
+      padding: 1.25rem 0.5rem;
        .logo-link h4, p {
          display: none;
        }
@@ -214,32 +216,31 @@ defineProps({
   }
 }
 
-// Responsive adjustments (Match ornekindex.html behavior more closely)
+// Responsive adjustments
 @media (max-width: 992px) {
   .sidebar {
-    // Sidebar should hide off-screen by default on smaller devices
-    left: -#{vars.$sidebar-width}; 
+    left: -#{$sidebar-width}; 
     
-    // When not collapsed (meaning it should be visible, e.g., toggled open)
     &:not(.collapsed) {
-       left: 0; // Bring it into view
-       // Optionally add an overlay effect here
+       left: 0;
+       box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
     }
      
-    // When collapsed on mobile, it should remain hidden off-screen
     &.collapsed {
-      left: -#{vars.$sidebar-width}; 
-      width: vars.$sidebar-width; // Reset width when hidden to calculate 'left' correctly
+      left: -#{$sidebar-collapsed-width}; 
     }
   }
-  
-  // Add a class to body or app-container when sidebar is open on mobile
-  // This logic would typically be handled in DefaultLayout.vue or App.vue
-  // Example: .app-container.sidebar-mobile-open .sidebar { left: 0; }
 }
 
-// Further refinement for very small screens if needed
+// Further refinement for very small screens
 @media (max-width: 768px) {
-   // Potentially adjust collapsed width or other styles
+   .sidebar {
+     width: 100%;
+     
+     &.collapsed {
+       left: -100%;
+       width: 100%;
+     }
+   }
 }
 </style>
